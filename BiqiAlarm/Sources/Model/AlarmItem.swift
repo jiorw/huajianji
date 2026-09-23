@@ -94,7 +94,7 @@ struct AlarmItem: Identifiable, Hashable, Codable {
             guard let date = calendar.date(byAdding: .second,
                                            value: hour * 3600 + minute * 60,
                                            to: day) else { continue }
-            if !date.after(now) { continue }
+            if date.timeIntervalSince(now) <= 0 { continue }
             switch repeatOption {
             case .once:
                 if offset < 2 { return date }        // 今天没过期就今天，否则算明天
