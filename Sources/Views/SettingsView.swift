@@ -5,201 +5,377 @@ struct SettingsView: View {
     @ObservedObject var store: PhotoStore
     @Environment(\.dismiss) private var dismiss
 
-    @State private var albums: [AlbumEntry] = []
-    @State private var backupURL: URL?
-    @State private var showImporter = false
     @State private var showFeedback = false
     @State private var showAbout = false
+    @State private var backupURL: URL?
+    @State private var showImporter = false
+
+    private let card = Color(red: 0.082, green: 0.082, blue: 0.09)
+    private let hair = Color.white.opacity(0.07)
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("会员") {
-                    LabeledContent("状态", value: "Pro · 终身已解锁")
-                    LabeledContent("版本", value: "朝花夕拾 \(Self.appVersion)")
-                    Text("这份构建没有内购、没有每日额度限制，所有功能直接可用。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                header
 
-                Section("回顾方式") {
-                    Picker("模式", selection: $store.mode) {
-                        ForEach(BrowseMode.allCases) { mode in
-                            Text(mode.title).tag(mode)
-                        }
-                    }
-                    Text(store.mode == .onThisDay
-                         ? "只抽往年今天的照片，一次翻到同一天不同年份的自己。"
-                         : "整个相册里随机抽，不知道会遇见哪一张。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                batchCard
 
-                Section("每组数量") {
-                    Stepper(value: $store.photoBatchSize, in: 5...60, step: 5) {
-                        LabeledContent("照片每组", value: "\(store.photoBatchSize) 张")
-                    }
-                    Stepper(value: $store.videoBatchSize, in: 5...40, step: 1) {
-                        LabeledContent("视频每组", value: "\(store.videoBatchSize) 个")
-                    }
-                }
-
-                Section("每日提醒") {
-                    Toggle("每天提醒我来翻一组", isOn: $store.reminderOn)
+                Card {
+                    ToggleRow(title: "每日提醒", isOn: $store.reminderOn)
                     if store.reminderOn {
-                        DatePicker("提醒时间", selection: reminderTime, displayedComponents: .hourAndMinute)
-                    }
-                    Text("通知在本地排期，不经过任何服务器。自签安装有时会被系统限制，收不到就在设置里关掉再开一次。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section("手势与反馈") {
-                    Toggle("震动反馈", isOn: $store.hapticsEnabled)
-                    Picker("双击手势", selection: $store.doubleTapAction) {
-                        ForEach(DoubleTapAction.allCases) { action in
-                            Text(action.title).tag(action)
-                        }
-                    }
-                    Text("关掉震动后，删除和收藏都不会再有触感；双击手势决定全屏页双击是放大还是收藏。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section("演示模式") {
-                    Toggle("只演示，不真的删除", isOn: $store.demoMode)
-                    Text("打开后走完整流程，但确认删除时不会动相册里的任何文件，统计数字也不计入。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section("浏览范围") {
-                    Button {
-                        store.albumID = nil
-                    } label: {
-                        row("所有照片", selected: store.albumID == nil)
-                    }
-                    ForEach(albums.filter { !$0.id.isEmpty }) { album in
-                        Button {
-                            store.albumID = album.id
-                        } label: {
-                            row(album.title, selected: store.albumID == album.id)
-                        }
+                        Hairline()
+                        TimeRow(date: reminderDate, onChange: applyReminderDate)
                     }
                 }
 
-                Section("记录") {
-                    if let backupURL {
-                        ShareLink(item: backupURL) {
-                            Label("分享导出的记录文件", systemImage: "square.and.arrow.up")
-                        }
+                Card {
+                    ToggleRow(title: "震动反馈", isOn: $store.hapticsEnabled)
+                    Hairline()
+                    MenuRow(title: "双击手势",
+                            value: store.doubleTapAction.title,
+                            options: DoubleTapAction.allCases.map { ($0.title, $0.rawValue) }) { pick in
+                        store.doubleTapAction = DoubleTapAction(rawValue: pick) ?? .zoom
                     }
-                    Button {
+                    Hairline()
+                    MenuRow(title: "时间格式",
+                            value: store.timeFormat.title,
+                            options: TimeFormat.allCases.map { ($0.title, $0.rawValue) }) { pick in
+                        store.timeFormat = TimeFormat(rawValue: pick) ?? .relative
+                    }
+                    Hairline()
+                    MenuRow(title: "回顾模式",
+                            value: store.mode.title,
+                            options: BrowseMode.allCases.map { ($0.title, $0.rawValue) }) { pick in
+                        store.mode = BrowseMode(rawValue: pick) ?? .blindBox
+                    }
+                }
+
+                Card {
+                    ToggleRow(title: "演示模式", isOn: $store.demoMode)
+                    if store.demoMode {
+                        Hairline()
+                        CaptionRow(text: "开启后走完整流程，但确认删除不会动相册里的任何文件，统计数字也不计入。")
+                    }
+                }
+
+                Card {
+                    ActionRow(title: "导出浏览记录", systemImage: "arrow.down.doc",
+                              value: backupURL == nil ? "" : "已生成") {
                         backupURL = store.exportBackup()
-                    } label: {
-                        Label("导出浏览记录", systemImage: "arrow.down.doc")
                     }
-                    Button {
+                    if let backupURL {
+                        Hairline()
+                        ShareRow(url: backupURL)
+                    }
+                    Hairline()
+                    ActionRow(title: "从文件导入", systemImage: "arrow.up.doc") {
                         showImporter = true
-                    } label: {
-                        Label("从文件导入", systemImage: "arrow.up.doc")
-                    }
-                    Text("自签安装拿不到 CloudKit 权限，所以同步靠这个 JSON 文件：旧机导出、新机导入，收藏和浏览进度就都过来了。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section("支持") {
-                    Button {
-                        showFeedback = true
-                    } label: {
-                        HStack {
-                            Label("问题反馈", systemImage: "text.bubble")
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    Button {
-                        showAbout = true
-                    } label: {
-                        HStack {
-                            Label("关于", systemImage: "info.circle")
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Text("v\(Self.appVersion)")
-                                .foregroundStyle(.secondary)
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                        }
                     }
                 }
 
-                Section {
-                    Text("朝花夕拾只在本机读取相册，不联网、不上传，所有记录存在 App 自己的沙盒里。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                Card {
+                    ActionRow(title: "问题反馈", systemImage: nil) { showFeedback = true }
+                    Hairline()
+                    ActionRow(title: "关于", systemImage: nil, value: "v\(Self.appVersion)") { showAbout = true }
                 }
+
+                Text("朝花夕拾只在本机读取相册，不联网、不上传，所有记录存在 App 自己的沙盒里。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 6)
+                    .padding(.top, 4)
             }
-            .navigationTitle("设置")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
-                }
-            }
-            .task {
-                if albums.isEmpty { albums = store.albums() }
-            }
-            .fileImporter(isPresented: $showImporter,
-                          allowedContentTypes: [.json],
-                          allowsMultipleSelection: false) { result in
-                switch result {
-                case .success(let urls):
-                    if let url = urls.first { store.importBackup(from: url) }
-                case .failure(let error):
-                    store.errorMessage = "读取文件失败：\(error.localizedDescription)"
-                }
-            }
-            .sheet(isPresented: $showFeedback) {
-                FeedbackSheet()
-            }
-            .sheet(isPresented: $showAbout) {
-                AboutSheet()
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
+            .padding(.bottom, 30)
+        }
+        .background(Color.black.ignoresSafeArea())
+        .preferredColorScheme(.dark)
+        .sheet(isPresented: $showFeedback) { FeedbackSheet() }
+        .sheet(isPresented: $showAbout) { AboutSheet() }
+        .fileImporter(isPresented: $showImporter,
+                      allowedContentTypes: [.json],
+                      allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first { store.importBackup(from: url) }
+            case .failure(let error):
+                store.errorMessage = "读取文件失败：\(error.localizedDescription)"
             }
         }
+    }
+
+    // MARK: - 标题栏
+
+    private var header: some View {
+        HStack(alignment: .center) {
+            Text("设置")
+                .font(.system(size: 34, weight: .bold))
+                .foregroundStyle(.white)
+            Spacer()
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 34, height: 34)
+            }
+            .buttonStyle(.plain)
+            .background(Color(white: 0.16), in: Circle())
+            .overlay(Circle().strokeBorder(.white.opacity(0.08), lineWidth: 1))
+        }
+        .padding(.top, 14)
+        .padding(.bottom, 6)
+    }
+
+    // MARK: - 每组数量
+
+    private var batchCard: some View {
+        Card {
+            StepperRow(title: "照片", value: $store.photoBatchSize, step: 5, range: 5...60, unit: "张")
+            Hairline()
+            StepperRow(title: "视频", value: $store.videoBatchSize, step: 1, range: 5...40, unit: "个")
+        }
+    }
+
+    private var reminderDate: Date {
+        var components = DateComponents()
+        components.hour = store.reminderHour
+        components.minute = store.reminderMinute
+        return Calendar.current.date(from: components) ?? Date()
+    }
+
+    private func applyReminderDate(_ date: Date) {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        store.reminderHour = components.hour ?? store.reminderHour
+        store.reminderMinute = components.minute ?? store.reminderMinute
     }
 
     private static var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 
-    private var reminderTime: Binding<Date> {
-        Binding(
-            get: {
-                var components = DateComponents()
-                components.hour = store.reminderHour
-                components.minute = store.reminderMinute
-                return Calendar.current.date(from: components) ?? Date()
-            },
-            set: { date in
-                let components = Calendar.current.dateComponents([.hour, .minute], from: date)
-                store.reminderHour = components.hour ?? store.reminderHour
-                store.reminderMinute = components.minute ?? store.reminderMinute
-            }
-        )
+    // MARK: - 卡片与行
+
+    private struct Card<Content: View>: View {
+        @ViewBuilder var content: Content
+
+        var body: some View {
+            VStack(spacing: 0) { content }
+                .background(Color(red: 0.082, green: 0.082, blue: 0.09),
+                            in: RoundedRectangle(cornerRadius: 26))
+                .overlay(RoundedRectangle(cornerRadius: 26)
+                    .strokeBorder(.white.opacity(0.045), lineWidth: 1))
+        }
     }
 
-    private func row(_ title: String, selected: Bool) -> some View {
-        HStack {
-            Text(title).foregroundStyle(.primary)
-            Spacer()
-            if selected {
-                Image(systemName: "checkmark").foregroundStyle(.tint)
+    private struct Hairline: View {
+        var body: some View {
+            Rectangle()
+                .fill(Color.white.opacity(0.07))
+                .frame(height: 0.6)
+                .padding(.leading, 18)
+        }
+    }
+
+    private struct TitleText: View {
+        let text: String
+        var body: some View {
+            Text(text)
+                .font(.system(size: 17))
+                .foregroundStyle(.white)
+        }
+    }
+
+    private struct ValueText: View {
+        let text: String
+        var body: some View {
+            Text(text)
+                .font(.system(size: 15))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private struct ToggleRow: View {
+        let title: String
+        @Binding var isOn: Bool
+
+        var body: some View {
+            HStack {
+                TitleText(text: title)
+                Spacer()
+                Toggle("", isOn: $isOn)
+                    .labelsHidden()
+                    .tint(.blue)
             }
+            .padding(.horizontal, 18)
+            .frame(height: 54)
+        }
+    }
+
+    private struct TimeRow: View {
+        let date: Date
+        var onChange: (Date) -> Void
+
+        var body: some View {
+            HStack {
+                TitleText(text: "提醒时间")
+                Spacer()
+                DatePicker("", selection: Binding(get: { date }, set: onChange),
+                           displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .tint(.blue)
+            }
+            .padding(.horizontal, 18)
+            .frame(height: 54)
+        }
+    }
+
+    private struct CaptionRow: View {
+        let text: String
+
+        var body: some View {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 2)
+                Text(text)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+        }
+    }
+
+    private struct MenuRow: View {
+        let title: String
+        let value: String
+        let options: [(String, String)]
+        var onPick: (String) -> Void
+
+        var body: some View {
+            Menu {
+                ForEach(options, id: \.1) { option in
+                    Button {
+                        onPick(option.1)
+                    } label: {
+                        if option.0 == value {
+                            Label(option.0, systemImage: "checkmark")
+                        } else {
+                            Text(option.0)
+                        }
+                    }
+                }
+            } label: {
+                HStack {
+                    TitleText(text: title)
+                    Spacer()
+                    ValueText(text: value)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 18)
+                .frame(height: 54)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private struct ActionRow: View {
+        let title: String
+        let systemImage: String?
+        var value: String = ""
+        var action: () -> Void
+
+        var body: some View {
+            Button(action: action) {
+                HStack {
+                    if let systemImage {
+                        Image(systemName: systemImage)
+                            .font(.system(size: 15))
+                            .foregroundStyle(.blue)
+                            .frame(width: 24)
+                    }
+                    TitleText(text: title)
+                    Spacer()
+                    if !value.isEmpty { ValueText(text: value) }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 18)
+                .frame(height: 54)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private struct ShareRow: View {
+        let url: URL
+
+        var body: some View {
+            HStack {
+                ShareLink(item: url) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 15))
+                        Text("分享这个文件")
+                            .font(.system(size: 17))
+                    }
+                    .foregroundStyle(.blue)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 18)
+            .frame(height: 54)
+        }
+    }
+
+    private struct StepperRow: View {
+        let title: String
+        @Binding var value: Int
+        let step: Int
+        let range: ClosedRange<Int>
+        let unit: String
+
+        var body: some View {
+            HStack {
+                TitleText(text: title)
+                Spacer()
+                ValueText(text: "\(value) \(unit)")
+                HStack(spacing: 8) {
+                    roundButton("minus", enabled: value - step >= range.lowerBound) {
+                        value = max(range.lowerBound, value - step)
+                    }
+                    roundButton("plus", enabled: value + step <= range.upperBound) {
+                        value = min(range.upperBound, value + step)
+                    }
+                }
+                .padding(.leading, 10)
+            }
+            .padding(.horizontal, 18)
+            .frame(height: 54)
+            .animation(.snappy, value: value)
+        }
+
+        private func roundButton(_ symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+            Button(action: action) {
+                Image(systemName: symbol)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(enabled ? Color.white : Color.white.opacity(0.25))
+                    .frame(width: 30, height: 30)
+                    .background(Color.white.opacity(enabled ? 0.12 : 0.05), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!enabled)
         }
     }
 }
