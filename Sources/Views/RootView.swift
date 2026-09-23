@@ -244,7 +244,7 @@ struct RootView: View {
                 Text(item.title)
                     .font(.system(size: 11, weight: .medium))
             }
-            .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white.opacity(0.86))
+            .foregroundStyle(selected ? .white : .white.opacity(0.7))
             .frame(width: Self.dockItemWidth, height: Self.dockHeight)
             .contentShape(Rectangle())
         }
@@ -252,7 +252,7 @@ struct RootView: View {
     }
 }
 
-/// 底栏里那块会滑动、会形变的选中玻璃
+/// 底栏里那块会滑动、会形变的选中玻璃：只用深色磨砂，不上亮色
 private struct DockSelection: View {
     let width: CGFloat
     let height: CGFloat
@@ -260,10 +260,10 @@ private struct DockSelection: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: 24)
-            .fill(.white.opacity(0.10))
+            .fill(.clear)
             .frame(width: width, height: height)
             .offset(x: offset)
-            .glassEffect(.regular.tint(.blue.opacity(0.42)).interactive(),
+            .glassEffect(.regular.tint(.black.opacity(0.30)).interactive(),
                          in: .rect(cornerRadius: 24))
     }
 }
