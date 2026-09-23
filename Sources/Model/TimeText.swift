@@ -6,14 +6,13 @@ enum TimeText {
         guard let date else { return "不知道是哪一天" }
         let day = Calendar.current.dateComponents([.day], from: date, to: now).day ?? 0
         switch day {
-        case ..<0: return "就在今天"
-        case 0: return "就在今天"
+        case ..<1: return "就在今天"
         case 1: return "就是昨天"
-        case..<7: return "是很近 · \(day) 天前"
-        case..<31: return "\(day / 7) 周前"
-        case..<365: return "\(day / 31) 个月前"
-        case..<365 * 3: return "\(day / 365) 年前"
-        case..<365 * 8: return "\(day / 365) 年前 · 很久以前"
+        case ..<7: return "是很近 · \(day) 天前"
+        case ..<31: return "\(day / 7) 周前"
+        case ..<365: return "\(day / 31) 个月前"
+        case ..<(365 * 3): return "\(day / 365) 年前"
+        case ..<(365 * 8): return "\(day / 365) 年前 · 很久以前"
         default: return "很久很久以前"
         }
     }
