@@ -116,23 +116,25 @@ struct RootView: View {
     private var header: some View {
         HStack {
             if store.writable, store.tab != .stats, store.tab != .editing {
-                GlassEffectContainer(spacing: 12) {
+                GlassEffectContainer(spacing: 10) {
                     HStack(spacing: 10) {
-                        Text(store.tab.title)
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 18)
-                            .frame(height: 40)
-                            .glassEffect(.regular, in: .rect(cornerRadius: 20))
-
-                        Text("\(store.deckRemaining)")
-                            .font(.system(size: 14, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(.white)
-                            .frame(width: 40, height: 40)
-                            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 20))
-                            .glassEffectID("remaining", in: glass)
-                            .contentTransition(.numericText(value: Double(store.deckRemaining)))
-                            .animation(.snappy, value: store.deckRemaining)
+                        // 一整个胶囊：册名 + 剩余张数小圆徽
+                        HStack(spacing: 9) {
+                            Text(store.tab.title)
+                                .font(.system(size: 17, weight: .medium))
+                            Text("\(store.deckRemaining)")
+                                .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(.white)
+                                .frame(width: 26, height: 26)
+                                .background(.white.opacity(0.20), in: Circle())
+                                .contentTransition(.numericText(value: Double(store.deckRemaining)))
+                                .animation(.snappy, value: store.deckRemaining)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.leading, 18)
+                        .padding(.trailing, 9)
+                        .frame(height: 42)
+                        .glassEffect(.regular, in: .capsule)
 
                         Button {
                             withAnimation(.spring(duration: 0.45, bounce: 0.22)) {
@@ -142,14 +144,14 @@ struct RootView: View {
                             Image(systemName: store.mode == .onThisDay ? "calendar.badge.clock" : "shuffle")
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundStyle(.white)
-                                .frame(width: 40, height: 40)
+                                .frame(width: 42, height: 42)
                                 .contentShape(Circle())
                         }
                         .buttonStyle(.plain)
                         .glassEffect(store.mode == .onThisDay
                                      ? .regular.tint(.blue.opacity(0.45)).interactive()
                                      : .regular.interactive(),
-                                     in: .rect(cornerRadius: 20))
+                                     in: .capsule)
                         .glassEffectID("mode", in: glass)
                         .animation(.snappy, value: store.mode)
                     }
@@ -180,42 +182,56 @@ struct RootView: View {
         }
     }
 
-    // MARK: - 底部 Dock（比之前放大 20%）
+    // MARK: - 底部 Dock：一整条胶囊 + 一个滑动的选中块
+
+    private static let dockItemWidth: CGFloat = 64
+    private static let dockHeight: CGFloat = 58
 
     private var dock: some View {
-        GlassEffectContainer(spacing: 30) {
-            HStack(spacing: 4) {
+        let selected = RootTab.allCases.firstIndex(of: store.tab) ?? 0
+        return ZStack {
+            Capsule().fill(Color.black.opacity(0.34))
+            Capsule().strokeBorder(.white.opacity(0.13), lineWidth: 1)
+
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color.black.opacity(0.62))
+                .frame(width: Self.dockItemWidth - 2, height: Self.dockHeight - 8)
+                .offset(x: dockPillOffset(for: selected))
+                .animation(.spring(duration: 0.42, bounce: 0.16), value: store.tab)
+
+            HStack(spacing: 0) {
                 ForEach(RootTab.allCases) { item in
                     dockItem(item)
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 8)
         }
+        .frame(height: Self.dockHeight)
+        .padding(.horizontal, 6)
         .padding(.top, 10)
+        .shadow(color: .black.opacity(0.28), radius: 12, y: 5)
+    }
+
+    private func dockPillOffset(for index: Int) -> CGFloat {
+        let total = Self.dockItemWidth * CGFloat(RootTab.allCases.count)
+        return -total / 2 + Self.dockItemWidth * (CGFloat(index) + 0.5)
     }
 
     private func dockItem(_ item: RootTab) -> some View {
         let selected = store.tab == item
         return Button {
-            withAnimation(.spring(duration: 0.45, bounce: 0.22)) { store.tab = item }
+            store.tab = item
         } label: {
             VStack(spacing: 5) {
                 Image(systemName: item.symbol)
-                    .font(.system(size: 21, weight: .medium))
+                    .font(.system(size: 20, weight: selected ? .semibold : .medium))
                 Text(item.title)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
             }
-            .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white)
-            .frame(width: 66, height: 56)
-            .contentShape(RoundedRectangle(cornerRadius: 28))
+            .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white.opacity(0.86))
+            .frame(width: Self.dockItemWidth, height: Self.dockHeight)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .glassEffect(
-            selected ? .regular.tint(.blue.opacity(0.40)).interactive() : .regular.interactive(),
-            in: .rect(cornerRadius: 28)
-        )
-        .glassEffectID("dock-\(item.rawValue)", in: glass)
     }
 }
 
