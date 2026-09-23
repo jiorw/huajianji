@@ -97,14 +97,14 @@ struct StatsView: View {
     private func memoryRow(_ group: MemoryGroup) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: "\(group.yearsAgo) 年前")
-                    .font(.footnote.weight(.semibold))
+                Text(verbatim: "\(group.year)")
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
-                Text(verbatim: "\(group.year) · \(group.assets.count >= 60 ? "60+" : "\(group.assets.count)") 张")
+                Text(verbatim: "\(group.assets.count >= 60 ? "60+" : "\(group.assets.count)") 张")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            .frame(width: 62, alignment: .leading)
+            .frame(width: 46, alignment: .leading)
 
             ForEach(group.assets.prefix(4), id: \.localIdentifier) { asset in
                 MediaImageView(asset: asset, targetSize: CGSize(width: 56, height: 56))
