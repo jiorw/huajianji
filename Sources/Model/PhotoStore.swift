@@ -222,9 +222,9 @@ final class PhotoStore: NSObject, ObservableObject {
     @Published var tab: RootTab = .photos {
         didSet {
             guard oldValue != tab, tab.mediaType != nil else { return }
-            // 先让 Dock 动画画出来，下一拍再碰相册数据
+            // 等底栏玻璃的形变动画走完再去碰相册数据，否则主线程会把它卡成一顿一顿
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(16))
+                try? await Task.sleep(for: .milliseconds(460))
                 self.refreshLibrary(redeal: true)
             }
         }
