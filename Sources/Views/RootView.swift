@@ -9,6 +9,7 @@ struct RootView: View {
     @Namespace private var zoom
 
     @State private var showSettings = false
+    @State private var showSplash = true
     @State private var viewer: ViewerRequest?
 
     private struct ViewerRequest: Identifiable {
@@ -48,9 +49,17 @@ struct RootView: View {
                 dock
             }
             .padding(.bottom, 6)
+
+            if showSplash {
+                SplashView {
+                    withAnimation(.easeInOut(duration: 0.7)) { showSplash = false }
+                    store.requestAccess()
+                }
+                .transition(.opacity.combined(with: .scale(scale: 1.05)))
+                .zIndex(10)
+            }
         }
         .preferredColorScheme(.dark)
-        .task { store.requestAccess() }
         .onChange(of: store.current?.localIdentifier) { _, _ in
             palette.update(from: store.current)
         }
