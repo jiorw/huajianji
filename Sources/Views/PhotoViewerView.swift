@@ -21,6 +21,7 @@ struct PhotoViewerView: View {
     @State private var finished = false
     @State private var showInfo = false
     @State private var livePlaying = false
+    @State private var toolsVisible = false
 
     private static let swipeThreshold: CGFloat = 96
 
@@ -38,6 +39,10 @@ struct PhotoViewerView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .contentShape(Rectangle())
                     .gesture(dragGesture)
+                    .onTapGesture(count: 2) { doubleTapped() }
+                    .onTapGesture {
+                        withAnimation(.easeOut(duration: 0.2)) { toolsVisible.toggle() }
+                    }
 
                 VStack(spacing: 0) {
                     header
@@ -68,6 +73,7 @@ struct PhotoViewerView: View {
     }
 
     private func reloadMedia() {
+        toolsVisible = false
         zoom = 1
         lastZoom = 1
         pan = .zero
@@ -102,7 +108,6 @@ struct PhotoViewerView: View {
                     .offset(x: drag.width + pan.width, y: drag.height + pan.height)
                     .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 46)))
                     .simultaneousGesture(pinchGesture)
-                    .onTapGesture(count: 2) { doubleTapped() }
             }
         }
     }
@@ -141,16 +146,6 @@ struct PhotoViewerView: View {
             .glassEffect(.regular, in: .rect(cornerRadius: 18))
 
             Spacer(minLength: 6)
-
-            Button { favoriteTapped() } label: {
-                Image(systemName: favorited ? "heart.fill" : "heart")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(favorited ? Color.red : .white)
-                    .frame(width: 38, height: 38)
-                    .scaleEffect(favorited ? 1.12 : 1)
-                    .animation(.spring(duration: 0.35, bounce: 0.5), value: favorited)
-            }
-            .buttonStyle(.glass)
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -176,7 +171,7 @@ struct PhotoViewerView: View {
     }
 
     private var navRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             tool("chevron.left", tint: .white.opacity(index > 0 ? 0.95 : 0.28)) { stepBack() }
                 .disabled(index == 0)
             tool("trash", tint: .red) { commit(delete: true) }
@@ -186,15 +181,29 @@ struct PhotoViewerView: View {
 
             tool("info.circle", tint: .white.opacity(0.9)) { showInfo = true }
 
-            RoutePickerButton()
-                .frame(width: 40, height: 40)
-                .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 20))
+            Button { favoriteTapped() } label: {
+                Image(systemName: favorited ? "heart.fill" : "heart")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(favorited ? Color.red : .white)
+                    .frame(width: 38, height: 38)
+                    .scaleEffect(favorited ? 1.12 : 1)
+                    .animation(.spring(duration: 0.35, bounce: 0.5), value: favorited)
+            }
+            .buttonStyle(.glass)
 
             if isVideo {
                 tool(playback.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
                      tint: .white.opacity(0.9)) { playback.toggleMute() }
             }
+
+            if toolsVisible {
+                RoutePickerButton()
+                    .frame(width: 38, height: 38)
+                    .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 19))
+                    .transition(.scale(scale: 0.7).combined(with: .opacity))
+            }
         }
+        .animation(.spring(duration: 0.35, bounce: 0.25), value: toolsVisible)
         .padding(.horizontal, 16)
         .padding(.bottom, 10)
         .opacity(zoomed ? 0 : 1)
@@ -206,7 +215,7 @@ struct PhotoViewerView: View {
             Image(systemName: symbol)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(tint)
-                .frame(width: 40, height: 40)
+                .frame(width: 38, height: 38)
         }
         .buttonStyle(.glass)
     }
