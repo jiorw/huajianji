@@ -79,7 +79,7 @@ struct SettingsView: View {
                     ActionRow(title: "关于", systemImage: nil, value: "v\(Self.appVersion)") { showAbout = true }
                 }
 
-                Text("朝花夕拾只在本机读取相册，不联网、不上传，所有记录存在 App 自己的沙盒里。")
+                Text("花间集只在本机读取相册，不联网、不上传，所有记录存在 App 自己的沙盒里。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
