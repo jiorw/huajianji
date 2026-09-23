@@ -19,12 +19,13 @@ enum MediaCache {
         let cache = NSCache<NSString, UIImage>()
         cache.countLimit = 36
         cache.totalCostLimit = 110 * 1024 * 1024
-        cache.costFunction = { _, image in
-            guard let cg = image.cgImage else { return 1 }
-            return cg.bytesPerRow * cg.height
-        }
         return cache
     }()
+
+    private static func cost(_ image: UIImage) -> Int {
+        guard let cg = image.cgImage else { return 1 }
+        return cg.bytesPerRow * cg.height
+    }
 
     private static func key(_ id: String, _ size: CGSize, _ mode: ContentMode) -> NSString {
         "\(id)|\(Int(size.width))x\(Int(size.height))|\(mode == .fill ? "f" : "i")" as NSString
@@ -35,7 +36,7 @@ enum MediaCache {
     }
 
     static func set(_ image: UIImage, _ id: String, _ size: CGSize, _ mode: ContentMode) {
-        cache.setObject(image, forKey: key(id, size, mode))
+        cache.setObject(image, forKey: key(id, size, mode), cost: cost(image))
     }
 
     /// 提前把后面几张拉进缓存，翻到时才不会转圈
@@ -67,6 +68,7 @@ struct MediaImageView: View {
 
     @State private var image: UIImage?
     @State private var shownID: String?
+    @State private var requestID: PHImageRequestID?
     @State private var slot = LoadSlot()
 
     /// PhotoKit 先回一张糊的再回清晰的，回调还可能迟到。用引用类型记住「现在到底要
