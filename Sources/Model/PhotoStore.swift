@@ -85,15 +85,6 @@ enum RootTab: Int, CaseIterable, Identifiable {
     }
 }
 
-struct AlbumEntry: Identifiable, Hashable {
-    let id: String
-    let title: String
-    let estimatedCount: Int
-
-    static func == (lhs: AlbumEntry, rhs: AlbumEntry) -> Bool { lhs.id == rhs.id }
-    func hash(into hasher: inout Hasher) { hasher.combine(id) }
-}
-
 enum BrowseMode: String, CaseIterable, Identifiable {
     case blindBox
     case onThisDay
@@ -103,6 +94,19 @@ enum BrowseMode: String, CaseIterable, Identifiable {
         switch self {
         case .blindBox: "随机盲盒"
         case .onThisDay: "回到那天"
+        }
+    }
+}
+
+enum TimeFormat: String, CaseIterable, Identifiable {
+    case relative
+    case absolute
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .relative: "距今"
+        case .absolute: "具体日期"
         }
     }
 }
@@ -163,14 +167,6 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
-    /// nil 表示「所有照片」
-    @Published var albumID: String? {
-        didSet {
-            guard oldValue != albumID else { return }
-            refreshLibrary(redeal: true)
-        }
-    }
-
     @Published var mode: BrowseMode {
         didSet {
             guard oldValue != mode else { return }
@@ -225,6 +221,20 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var timeFormat: TimeFormat {
+        didSet {
+            guard oldValue != timeFormat else { return }
+            defaults.set(timeFormat.rawValue, forKey: Keys.timeFormat)
+        }
+    }
+
+    /// 按用户在设置里选的口径显示拍摄时间
+    func reviewTimeText(for asset: PHAsset) -> String {
+        timeFormat == .relative
+            ? TimeText.since(asset.creationDate)
+            : TimeText.precise(asset.creationDate)
+    }
+
     private enum Keys {
         static let verdicts = "zhaohuaxishi.verdicts.v1"
         static let stats = "zhaohuaxishi.stats.v1"
@@ -238,6 +248,7 @@ final class PhotoStore: NSObject, ObservableObject {
         static let reminderMinute = "zhaohuaxishi.reminder.minute"
         static let haptics = "zhaohuaxishi.haptics"
         static let doubleTap = "zhaohuaxishi.doubleTap"
+        static let timeFormat = "zhaohuaxishi.timeFormat"
     }
 
     private let defaults = UserDefaults.standard
@@ -254,16 +265,6 @@ final class PhotoStore: NSObject, ObservableObject {
 
     var writable: Bool {
         authorization == .authorized || authorization == .limited
-    }
-
-    var albumTitle: String {
-        guard let albumID,
-              let collection = PHAssetCollection.fetchAssetCollections(
-                  withLocalIdentifiers: [albumID], options: nil).firstObject,
-              let name = collection.localizedTitle, !name.isEmpty else {
-            return tab.title
-        }
-        return name
     }
 
     var current: PHAsset? { card(at: 0) }
@@ -293,6 +294,7 @@ final class PhotoStore: NSObject, ObservableObject {
         reminderMinute = stored.object(forKey: Keys.reminderMinute) as? Int ?? 30
         hapticsEnabled = stored.object(forKey: Keys.haptics) as? Bool ?? true
         doubleTapAction = DoubleTapAction(rawValue: stored.string(forKey: Keys.doubleTap) ?? "") ?? .zoom
+        timeFormat = TimeFormat(rawValue: stored.string(forKey: Keys.timeFormat) ?? "") ?? .relative
         super.init()
         if let data = defaults.data(forKey: Keys.verdicts),
            let saved = try? JSONDecoder().decode([String: Verdict].self, from: data) {
@@ -388,13 +390,7 @@ final class PhotoStore: NSObject, ObservableObject {
     }
 
     private func currentFetchResult() -> PHFetchResult<PHAsset> {
-        let options = fetchOptions()
-        if let albumID,
-           let collection = PHAssetCollection.fetchAssetCollections(
-               withLocalIdentifiers: [albumID], options: nil).firstObject {
-            return PHAsset.fetchAssets(in: collection, options: options)
-        }
-        return PHAsset.fetchAssets(with: options)
+        PHAsset.fetchAssets(with: fetchOptions())
     }
 
     private func refreshLibrary(redeal: Bool) {
@@ -646,19 +642,6 @@ final class PhotoStore: NSObject, ObservableObject {
         stats = CleanupStats()
         writeToDisk()
         refreshLibrary(redeal: true)
-    }
-
-    // MARK: - 相册列表
-
-    nonisolated func albums() -> [AlbumEntry] {
-        var list = [AlbumEntry(id: "", title: "所有照片", estimatedCount: 0)]
-        let result = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .albumRegular, options: nil)
-        result.enumerateObjects { collection, _, _ in
-            let title = collection.localizedTitle ?? "未命名相簿"
-            let count = collection.estimatedAssetCount
-            list.append(AlbumEntry(id: collection.localIdentifier, title: title, estimatedCount: count))
-        }
-        return list
     }
 
     // MARK: - 记录导出 / 导入（自签没有 CloudKit 权限，用文件搬）
