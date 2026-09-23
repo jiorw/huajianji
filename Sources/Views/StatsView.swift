@@ -6,6 +6,7 @@ struct StatsView: View {
     var onOpenSettings: () -> Void
 
     @State private var confirmReset = false
+    @State private var showFavorites = false
 
     private let cardColor = Color(red: 0.105, green: 0.105, blue: 0.115)
 
@@ -33,6 +34,8 @@ struct StatsView: View {
 
                 freedCard
 
+                favoritesCard
+
                 if store.queuedCount > 0 {
                     pendingCard
                 }
@@ -44,6 +47,9 @@ struct StatsView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
+        .sheet(isPresented: $showFavorites) {
+            FavoritesView(store: store)
+        }
         .confirmationDialog("确定重置？", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("重置浏览记录", role: .destructive) { store.resetProgress() }
             Button("取消", role: .cancel) {}
@@ -141,6 +147,31 @@ struct StatsView: View {
         case .screenshot: Color(red: 1.0, green: 0.35, blue: 0.35)
         case .video: Color(red: 0.45, green: 0.9, blue: 0.4)
         }
+    }
+
+    // MARK: - 收藏
+
+    private var favoritesCard: some View {
+        Button {
+            showFavorites = true
+        } label: {
+            HStack {
+                Label("收藏", systemImage: "heart.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(Color(red: 1.0, green: 0.35, blue: 0.45))
+                Spacer()
+                Text("\(store.favoriteIDs.count) 张")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity)
+            .background(cardColor, in: RoundedRectangle(cornerRadius: 22))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - 待确认删除
