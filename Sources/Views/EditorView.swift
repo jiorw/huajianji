@@ -52,7 +52,7 @@ struct EditorView: View {
                                     systemImage: "square.and.arrow.down")
                     }
                     .buttonStyle(.plain)
-                    .glassEffect(.regular.tint(.blue.opacity(0.55)).interactive(),
+                    .glassEffect(.regular.tint(.black.opacity(0.30)).interactive(),
                                  in: .rect(cornerRadius: 22))
                     .disabled(isWorking || choice.isOriginal)
                 }
@@ -75,7 +75,7 @@ struct EditorView: View {
                             .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
-                    .glassEffect(.regular.tint(.blue.opacity(0.42)).interactive(),
+                    .glassEffect(.regular.tint(.black.opacity(0.30)).interactive(),
                                  in: .rect(cornerRadius: 24))
                 }
                 .frame(maxWidth: .infinity)
