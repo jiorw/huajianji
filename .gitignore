@@ -1,0 +1,9 @@
+*.xcodeproj/
+*.xcworkspace/
+derived/
+build/
+Payload/
+*.ipa
+*.xcarchive
+xcuserdata/
+.DS_Store
