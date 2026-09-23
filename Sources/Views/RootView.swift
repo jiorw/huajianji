@@ -157,13 +157,13 @@ struct RootView: View {
     // MARK: - 底部 Dock（比之前放大 20%）
 
     private var dock: some View {
-        GlassEffectContainer(spacing: 55) {
-            HStack(spacing: 12) {
+        GlassEffectContainer(spacing: 40) {
+            HStack(spacing: 8) {
                 ForEach(RootTab.allCases) { item in
                     dockItem(item)
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 10)
             .padding(.vertical, 10)
         }
         .padding(.top, 10)
@@ -181,7 +181,7 @@ struct RootView: View {
                     .font(.system(size: 13, weight: .medium))
             }
             .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white)
-            .frame(width: 91, height: 58)
+            .frame(width: 80, height: 58)
             .contentShape(RoundedRectangle(cornerRadius: 29))
         }
         .buttonStyle(.plain)
