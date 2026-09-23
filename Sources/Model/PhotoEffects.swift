@@ -219,7 +219,7 @@ enum PhotoEffectEngine {
         if let filter = CIFilter(name: "CIColorCubeWithColorSpace") {
             filter.setValue(lut.dimension, forKey: "inputCubeDimension")
             filter.setValue(lut.data, forKey: "inputCubeData")
-            filter.setValue(kCGColorSpaceSRGB as String, forKey: "inputColorSpace")
+            filter.setValue(CGColorSpace.sRGB as String, forKey: "inputColorSpace")
             filter.setValue(input, forKey: kCIInputImageKey)
             if let result = filter.outputImage { return result }
         }
