@@ -1,5 +1,6 @@
 import Foundation
 import Photos
+import UIKit
 
 enum Verdict: String, Codable {
     case kept
@@ -103,6 +104,19 @@ enum BrowseMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum DoubleTapAction: String, CaseIterable, Identifiable {
+    case zoom
+    case favorite
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .zoom: "放大"
+        case .favorite: "收藏"
+        }
+    }
+}
+
 @MainActor
 final class PhotoStore: NSObject, ObservableObject {
 
@@ -194,6 +208,20 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var hapticsEnabled: Bool {
+        didSet {
+            guard oldValue != hapticsEnabled else { return }
+            defaults.set(hapticsEnabled, forKey: Keys.haptics)
+        }
+    }
+
+    @Published var doubleTapAction: DoubleTapAction {
+        didSet {
+            guard oldValue != doubleTapAction else { return }
+            defaults.set(doubleTapAction.rawValue, forKey: Keys.doubleTap)
+        }
+    }
+
     private enum Keys {
         static let verdicts = "zhaohuaxishi.verdicts.v1"
         static let stats = "zhaohuaxishi.stats.v1"
@@ -205,6 +233,8 @@ final class PhotoStore: NSObject, ObservableObject {
         static let reminderOn = "zhaohuaxishi.reminder.on"
         static let reminderHour = "zhaohuaxishi.reminder.hour"
         static let reminderMinute = "zhaohuaxishi.reminder.minute"
+        static let haptics = "zhaohuaxishi.haptics"
+        static let doubleTap = "zhaohuaxishi.doubleTap"
     }
 
     private let defaults = UserDefaults.standard
@@ -243,6 +273,12 @@ final class PhotoStore: NSObject, ObservableObject {
         return deck.indices.contains(index) ? deck[index] : nil
     }
 
+    /// 震动反馈，设置里可以整体关掉
+    func bump(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .light) {
+        guard hapticsEnabled else { return }
+        UIImpactFeedbackGenerator(style: style).impactOccurred()
+    }
+
     override init() {
         let stored = UserDefaults.standard
         photoBatchSize = stored.object(forKey: Keys.photoBatch) as? Int ?? Self.deckSize
@@ -252,6 +288,8 @@ final class PhotoStore: NSObject, ObservableObject {
         reminderOn = stored.bool(forKey: Keys.reminderOn)
         reminderHour = stored.object(forKey: Keys.reminderHour) as? Int ?? 20
         reminderMinute = stored.object(forKey: Keys.reminderMinute) as? Int ?? 30
+        hapticsEnabled = stored.object(forKey: Keys.haptics) as? Bool ?? true
+        doubleTapAction = DoubleTapAction(rawValue: stored.string(forKey: Keys.doubleTap) ?? "") ?? .zoom
         super.init()
         if let data = defaults.data(forKey: Keys.verdicts),
            let saved = try? JSONDecoder().decode([String: Verdict].self, from: data) {
