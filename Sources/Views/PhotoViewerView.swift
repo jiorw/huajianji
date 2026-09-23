@@ -34,36 +34,15 @@ struct PhotoViewerView: View {
             ZStack {
                 Color.black.opacity(0.95).ignoresSafeArea()
 
-                if let asset {
-                    if isVideo {
-                        PlayerUIView(player: playback.player)
-                            .offset(drag)
-                            .gesture(dragGesture)
-                            .id(asset.localIdentifier)
-                    } else if isLive {
-                        LivePhotoView(asset: asset, playing: livePlaying)
-                            .offset(drag)
-                            .gesture(dragGesture)
-                            .onLongPressGesture(minimumDuration: 0.25, pressing: { pressing in
-                                livePlaying = pressing
-                            }, perform: {})
-                            .id(asset.localIdentifier)
-                    } else {
-                        MediaImageView(asset: asset, targetSize: geo.size, contentMode: .fit)
-                            .scaleEffect(zoom)
-                            .offset(x: drag.width + pan.width,
-                                    y: drag.height + pan.height)
-                            .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 46)))
-                            .gesture(dragGesture)
-                            .simultaneousGesture(pinchGesture)
-                            .onTapGesture(count: 2) { doubleTapped() }
-                            .id(asset.localIdentifier)
-                    }
-                }
+                mediaLayer(size: geo.size)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .gesture(dragGesture)
 
                 VStack(spacing: 0) {
                     header
                     Spacer()
+                    navRow
                     footer
                 }
             }
@@ -100,6 +79,31 @@ struct PhotoViewerView: View {
             playback.load(asset)
         } else {
             playback.stop()
+        }
+    }
+
+    // MARK: - 画面层
+
+    @ViewBuilder
+    private func mediaLayer(size: CGSize) -> some View {
+        if let asset {
+            if isVideo {
+                PlayerUIView(player: playback.player)
+                    .offset(drag)
+            } else if isLive {
+                LivePhotoView(asset: asset, playing: livePlaying)
+                    .offset(drag)
+                    .onLongPressGesture(minimumDuration: 0.25, pressing: { pressing in
+                        livePlaying = pressing
+                    }, perform: {})
+            } else {
+                MediaImageView(asset: asset, targetSize: size, contentMode: .fit)
+                    .scaleEffect(zoom)
+                    .offset(x: drag.width + pan.width, y: drag.height + pan.height)
+                    .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 46)))
+                    .simultaneousGesture(pinchGesture)
+                    .onTapGesture(count: 2) { doubleTapped() }
+            }
         }
     }
 
@@ -186,6 +190,42 @@ struct PhotoViewerView: View {
         case .zoom: toggleZoom()
         case .favorite: favoriteTapped()
         }
+    }
+
+    private var navRow: some View {
+        HStack(spacing: 12) {
+            Button { stepBack() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white.opacity(index > 0 ? 0.95 : 0.3))
+                    .frame(width: 52, height: 44)
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
+            .disabled(index == 0)
+
+            Button { commit(delete: true) } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.tint(.red.opacity(0.22)).interactive(), in: .rect(cornerRadius: 22))
+
+            Button { commit(delete: false) } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .frame(width: 52, height: 44)
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
+        }
+        .padding(.horizontal, 22)
+        .padding(.bottom, 10)
+        .opacity(zoomed ? 0 : 1)
     }
 
     // MARK: - 底栏
