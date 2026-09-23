@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh_CN</string>
+	<key>CFBundleDisplayName</key>
+	<string>必起闹钟</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+	<key>NSAlarmKitUsageDescription</key>
+	<string>必起需要用系统级闹钟来保证在专注模式和静音档下也能把你叫醒。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>拍照、扫码、识别物体和深蹲这几个起床使命要用相机。画面只在本机比对，不会上传。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>朗读使命要听你念的句子，另外你可以自己录一段铃声。录音只存在本机。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>朗读使命需要把你说的话转成文字，用来判断句子读对了没有。</string>
+	<key>NSMotionUsageDescription</key>
+	<string>摇一摇和走够步数这两个使命需要读取加速度计和计步数据。</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>如果你想用自己手机里的歌当闹钟铃声，需要访问音乐库。导出的片段只存在本机。</string>
+</dict>
+</plist>
