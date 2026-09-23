@@ -181,11 +181,9 @@ struct PhotoViewerView: View {
         }
     }
 
-    /// 右侧竖排的透明玻璃工具列，照原版那四个按钮
+    /// 右侧竖排的透明玻璃工具列，和原版一样四个：收藏 / 分享 / 删除 / 撤销
     private var sideTools: some View {
         VStack(spacing: 12) {
-            tool("info.circle", tint: .white.opacity(0.92)) { showInfo = true }
-
             tool(favorited ? "heart.fill" : "heart",
                  tint: favorited ? .red : .white) { favoriteTapped() }
 
@@ -261,16 +259,26 @@ struct PhotoViewerView: View {
     // MARK: - 底栏
 
     private var footer: some View {
-        VStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             if let asset {
-                Text(store.reviewTimeText(for: asset))
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.white)
-                Text(store.timeFormat == .relative
-                     ? TimeText.precise(asset.creationDate)
-                     : TimeText.since(asset.creationDate))
+                // 左下角时间行，点一下才展开详情（对应原版那个 ⌄）
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(store.reviewTimeText(for: asset))
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                    HStack(spacing: 5) {
+                        Text(store.timeFormat == .relative
+                             ? TimeText.precise(asset.creationDate)
+                             : TimeText.since(asset.creationDate))
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 10, weight: .bold))
+                    }
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.55))
+                    .foregroundStyle(.white.opacity(0.6))
+                }
+                .padding(.trailing, 14)
+                .contentShape(Rectangle())
+                .onTapGesture { showInfo = true }
             }
             HStack {
                 if isVideo {
@@ -292,6 +300,7 @@ struct PhotoViewerView: View {
         }
         .padding(.horizontal, 34)
         .padding(.bottom, 26)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(zoomed ? 0 : 1)
         .animation(.easeOut(duration: 0.2), value: zoomed)
     }
