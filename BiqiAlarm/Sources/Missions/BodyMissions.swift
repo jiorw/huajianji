@@ -91,7 +91,7 @@ struct TypingMissionView: View {
 
     private func targetCard(wanted: [Character], matched: Int, wrong: Int?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(charLine(wanted: wanted, matched: matched, wrong: wrong))
+            charLine(wanted: wanted, matched: matched, wrong: wrong)
                 .font(.system(size: 24, weight: .semibold, design: .rounded))
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -138,7 +138,7 @@ struct TypingMissionView: View {
             .onChange(of: input) { _, _ in
                 Task { @MainActor in checkInput() }
             }
-            .glassPanel(cornerRadius: 20, tint: Color.white.opacity(0.08))
+            .glassPanel(tint: Color.white.opacity(0.08), cornerRadius: 20)
             .overlay(alignment: .topTrailing) {
                 if let wrong = wrongIndex {
                     Text("第 \(wrong + 1) 个字不对")
