@@ -180,7 +180,6 @@ struct MemoryGroup: Identifiable {
     let year: Int
     let assets: [PHAsset]
     var id: Int { year }
-    var yearsAgo: Int { Calendar.current.component(.year, from: Date()) - year }
 }
 
 @MainActor
