@@ -58,10 +58,10 @@
 brew install xcodegen
 xcodegen generate
 xcodebuild build -project ZhaoHuaXiShi.xcodeproj -target ZhaoHuaXiShi \
-  -configuration Release -sdk iphoneos -derivedDataPath derived \
+  -configuration Release -sdk iphoneos SYMROOT=$(pwd)/build_out \
   ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=
 rm -rf Payload && mkdir Payload
-cp -R derived/Build/Products/Release-iphoneos/ZhaoHuaXiShi.app Payload/
+cp -R build_out/Release-iphoneos/ZhaoHuaXiShi.app Payload/
 ditto -c -k --keepParent Payload ZhaoHuaXiShi-unsigned.ipa
 ```
 
