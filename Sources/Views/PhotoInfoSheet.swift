@@ -82,7 +82,6 @@ struct PhotoInfoSheet: View {
         if asset.mediaSubtypes.contains(.photoScreenshot) { return "截屏" }
         if asset.mediaSubtypes.contains(.photoLive) { return "实况照片" }
         if asset.playbackStyle == .imageAnimated { return "动图" }
-        if asset.playbackStyle == .imageLooping { return "长图/循环" }
         return "照片"
     }
 
@@ -117,7 +116,8 @@ struct PhotoInfoSheet: View {
                 contentMode: .aspectFit,
                 options: options
             ) { _, resultInfo in
-                continuation.resume(returning: resultInfo?[PHImageInfoKey] as? [String: Any])
+                // Photos 没把这个键导出到 Swift，用字面量取，取不到就跳过相机参数
+                continuation.resume(returning: resultInfo?["PHImageInfoKey"] as? [String: Any])
             }
         }
         guard let info else { return [] }
