@@ -2,87 +2,182 @@ import SwiftUI
 import Photos
 import CoreLocation
 import ImageIO
+import MapKit
 
-/// 照片 / 视频详细信息：时间、分类、尺寸、文件、位置、EXIF
+/// 照片详情：顶部照片条 + 相片信息 + 拍摄位置，样式照着系统相册的信息面板做
 struct PhotoInfoSheet: View {
     let asset: PHAsset
     @Environment(\.dismiss) private var dismiss
 
-    @State private var exif: [(String, String)] = []
-    @State private var place: String = "读取中…"
-    @State private var fileLines: [(String, String)] = []
+    @State private var meta = PhotoMeta()
+    @State private var place = ""
+    @State private var address = ""
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section("时间") {
-                    LabeledContent("拍摄", value: TimeText.precise(asset.creationDate))
-                    LabeledContent("距今", value: TimeText.since(asset.creationDate))
-                    if let modified = asset.modificationDate {
-                        LabeledContent("最后修改", value: TimeText.precise(modified))
-                    }
-                }
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                banner
+                DashedRule().padding(.top, 18)
+                photoSection
+                DashedRule().padding(.top, 20)
+                locationSection
+                dismissButton.padding(.top, 28)
+            }
+            .padding(.bottom, 20)
+        }
+        .background(Color.black)
+        .presentationBackground(.black)
+        .presentationDetents([.large])
+        .presentationDragIndicator(.hidden)
+        .task { await load() }
+    }
 
-                Section("内容") {
-                    LabeledContent("分类", value: category)
-                    LabeledContent("像素", value: "\(asset.pixelWidth) × \(asset.pixelHeight)")
-                    if asset.mediaType == .video {
-                        LabeledContent("时长", value: Self.duration(asset.duration))
-                    }
-                }
+    // MARK: - 顶部：照片本身当背景，压暗后叠时间
 
-                if !fileLines.isEmpty {
-                    Section("文件") {
-                        ForEach(fileLines, id: \.0) { key, value in
-                            LabeledContent(key, value: value)
-                        }
-                    }
-                }
+    private var banner: some View {
+        ZStack(alignment: .bottomLeading) {
+            MediaImageView(asset: asset, targetSize: CGSize(width: 360, height: 230))
+                .frame(maxWidth: .infinity)
+                .frame(height: 230)
+                .clipped()
 
-                Section("位置") {
-                    if let location = asset.location {
-                        LabeledContent("坐标", value: String(
-                            format: "%.5f, %.5f",
-                            location.coordinate.latitude,
-                            location.coordinate.longitude))
-                        LabeledContent("地点", value: place)
-                    } else {
-                        Text("这张没有记录位置信息")
-                            .foregroundStyle(.secondary)
-                    }
-                }
+            LinearGradient(colors: [Color.black.opacity(0.15), Color.black.opacity(0.72)],
+                           startPoint: .center, endPoint: .bottom)
 
-                if !exif.isEmpty {
-                    Section("相机参数") {
-                        ForEach(exif, id: \.0) { key, value in
-                            LabeledContent(key, value: value)
-                        }
+            VStack(alignment: .leading, spacing: 6) {
+                Text(TimeText.since(asset.creationDate))
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(.white)
+                Text(Self.weekdayTime(asset.creationDate))
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.92))
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 18)
+        }
+    }
+
+    // MARK: - 相片信息
+
+    private var photoSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHead(symbol: "camera", title: "相片信息")
+
+            if !meta.device.isEmpty {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("设备")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.white.opacity(0.62))
+                    Spacer(minLength: 12)
+                    Text(meta.device)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+
+            let chips = meta.chips
+            if !chips.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(chips) { chip in
+                        MetricChip(value: chip.value, label: chip.label)
                     }
                 }
             }
-            .navigationTitle("详细信息")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+
+            VStack(spacing: 12) {
+                BulletRow(label: "文件名", value: meta.fileName)
+                BulletRow(label: "分辨率", value: meta.resolution)
+                BulletRow(label: "文件大小", value: meta.fileSize)
+                if !meta.format.isEmpty {
+                    BulletRow(label: "格式", value: meta.format)
                 }
+                if !meta.duration.isEmpty {
+                    BulletRow(label: "时长", value: meta.duration)
+                }
+                BulletRow(label: "类型", value: category)
             }
         }
-        .task {
-            fileLines = Self.fileInfo(of: asset)
-            exif = await Self.readExif(of: asset)
-            place = await Self.reverseGeocode(asset.location)
-        }
+        .padding(.horizontal, 20)
     }
 
     private var category: String {
         if asset.mediaType == .video {
-            return asset.mediaSubtypes.contains(.videoScreenRecording) ? "录屏" : "视频"
+            return asset.mediaSubtypes.contains(.videoScreenRecording) ? "屏幕录制" : "视频"
         }
         if asset.mediaSubtypes.contains(.photoScreenshot) { return "截屏" }
         if asset.mediaSubtypes.contains(.photoLive) { return "实况照片" }
         if asset.playbackStyle == .imageAnimated { return "动图" }
         return "照片"
+    }
+
+    // MARK: - 拍摄位置
+
+    @ViewBuilder
+    private var locationSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHead(symbol: "location.north.line.fill", title: "拍摄位置")
+
+            if let location = asset.location {
+                Map(initialPosition: .region(MKCoordinateRegion(
+                    center: location.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)))) {
+                    Marker(place.isEmpty ? "拍摄地" : place,
+                           coordinate: location.coordinate, tint: .green)
+                }
+                .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+                .allowsDragging(false)
+                .allowsZooming(false)
+                .frame(height: 190)
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .overlay(RoundedRectangle(cornerRadius: 18)
+                    .strokeBorder(.white.opacity(0.12), lineWidth: 1))
+
+                HStack(alignment: .firstTextBaseline) {
+                    Text(place.isEmpty ? "拍摄地" : place)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Spacer(minLength: 12)
+                    Text(address)
+                        .font(.system(size: 15))
+                        .foregroundStyle(.white.opacity(0.62))
+                        .multilineTextAlignment(.trailing)
+                }
+            } else {
+                Text("这张没有记录位置信息")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+
+    private var dismissButton: some View {
+        Button { dismiss() } label: {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 150, height: 52)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - 数据
+
+    private func load() async {
+        var m = PhotoMeta(resolution: "\(asset.pixelWidth) × \(asset.pixelHeight)")
+        if asset.mediaType == .video { m.duration = Self.duration(asset.duration) }
+        Self.applyFile(&m, of: asset)
+        let raw = await Self.readExif(of: asset)
+        Self.applyExif(&m, raw)
+        meta = m
+        guard let location = asset.location else { return }
+        let marks = await Self.reverseGeocode(location)
+        place = marks.short
+        address = marks.full
     }
 
     private static func duration(_ seconds: TimeInterval) -> String {
@@ -92,19 +187,33 @@ struct PhotoInfoSheet: View {
         return s < 10 ? "\(m):0\(s)" : "\(m):\(s)"
     }
 
-    private static func fileInfo(of asset: PHAsset) -> [(String, String)] {
-        guard let resource = PHAssetResource.assetResources(for: asset).first else { return [] }
-        var lines: [(String, String)] = []
-        let name = resource.originalFilename
-        if !name.isEmpty { lines.append(("文件名", name)) }
-        lines.append(("格式", resource.uniformTypeIdentifier.uppercased()))
-        if let bytes = resource.value(forKey: "fileSize") as? NSNumber {
-            lines.append(("大小", ByteCountFormatter.string(fromByteCount: bytes.int64Value, countStyle: .file)))
-        }
-        return lines
+    private static func weekdayTime(_ date: Date?) -> String {
+        guard let date else { return "时间未知" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy年M月d日 EEEE HH:mm"
+        return formatter.string(from: date)
     }
 
-    private static func readExif(of asset: PHAsset) async -> [(String, String)] {
+    private static func applyFile(_ meta: inout PhotoMeta, of asset: PHAsset) {
+        guard let resource = PHAssetResource.assetResources(for: asset).first else { return }
+        meta.fileName = resource.originalFilename
+        meta.format = resource.uniformTypeIdentifier.uppercased()
+        if let bytes = resource.value(forKey: "fileSize") as? NSNumber {
+            meta.fileSize = ByteCountFormatter.string(fromByteCount: bytes.int64Value,
+                                                      countStyle: .file)
+        }
+    }
+
+    private static func applyExif(_ meta: inout PhotoMeta, _ raw: [String: String]) {
+        meta.device = raw["device"] ?? ""
+        meta.aperture = raw["aperture"] ?? ""
+        meta.shutter = raw["shutter"] ?? ""
+        meta.iso = raw["iso"] ?? ""
+        meta.focal = raw["focal"] ?? ""
+    }
+
+    private static func readExif(of asset: PHAsset) async -> [String: String] {
         let options = PHImageRequestOptions()
         options.version = .current
         options.isNetworkAccessAllowed = true
@@ -116,48 +225,152 @@ struct PhotoInfoSheet: View {
                 contentMode: .aspectFit,
                 options: options
             ) { _, resultInfo in
-                // Photos 没把这个键导出到 Swift，用字面量取，取不到就跳过相机参数
+                // Photos 没把这个键导出到 Swift，用字面量取，取不到就没有相机参数
                 continuation.resume(returning: resultInfo?["PHImageInfoKey"] as? [String: Any])
             }
         }
-        guard let info else { return [] }
+        guard let info else { return [:] }
         let tiff = info[kCGImagePropertyTIFFDictionary as String] as? [String: Any] ?? [:]
         let exif = info[kCGImagePropertyExifDictionary as String] as? [String: Any] ?? [:]
+        var out: [String: String] = [:]
 
-        var lines: [(String, String)] = []
-        if let make = tiff[kCGImagePropertyTIFFMake as String] as? String,
-           let model = tiff[kCGImagePropertyTIFFModel as String] as? String {
-            lines.append(("设备", "\(make) \(model)"))
-        } else if let model = tiff[kCGImagePropertyTIFFModel as String] as? String {
-            lines.append(("设备", model))
+        let make = tiff[kCGImagePropertyTIFFMake as String] as? String
+        let model = tiff[kCGImagePropertyTIFFModel as String] as? String
+        if let make, let model {
+            out["device"] = "\(make) \(model)"
+        } else if let model {
+            out["device"] = model
         }
         if let iso = exif[kCGImagePropertyExifISOSpeedRatings as String] as? [Any],
            let first = iso.first {
-            lines.append(("ISO", "\(first)"))
+            out["iso"] = "ISO \(first)"
         }
         if let f = exif[kCGImagePropertyExifFNumber as String] as? Double {
-            lines.append(("光圈", String(format: "f/%.1f", f)))
+            out["aperture"] = String(format: "f%.2f", f)
         }
         if let focal = exif[kCGImagePropertyExifFocalLength as String] as? Double {
-            lines.append(("焦距", String(format: "%.0f mm", focal)))
+            out["focal"] = String(format: "%.0f mm", focal)
         }
-        if let exposure = exif[kCGImagePropertyExifExposureTime as String] as? Double, exposure > 0 {
-            lines.append(("快门", String(format: "1/%.0f s", 1 / exposure)))
+        if let exposure = exif[kCGImagePropertyExifExposureTime as String] as? Double,
+           exposure > 0 {
+            out["shutter"] = String(format: "1/%.0f s", 1 / exposure)
         }
-        return lines
+        return out
     }
 
-    private static func reverseGeocode(_ location: CLLocation?) async -> String {
-        guard let location else { return "无位置信息" }
-        do {
-            let marks = try await CLGeocoder().reverseGeocodeLocation(location)
-            guard let mark = marks.first else { return "查不到地名" }
-            let parts = [mark.administrativeArea, mark.locality, mark.name]
-                .compactMap { $0 }
-                .filter { !$0.isEmpty }
-            return parts.isEmpty ? "查不到地名" : parts.joined(separator: " · ")
-        } catch {
-            return "需要联网才能查地名"
+    private static func reverseGeocode(_ location: CLLocation) async -> (short: String, full: String) {
+        guard let marks = try? await CLGeocoder().reverseGeocodeLocation(location),
+              let mark = marks.first else { return ("", "查不到地名，可能要联网") }
+        let short = mark.name ?? ""
+        let full = [mark.administrativeArea, mark.locality, mark.subLocality]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: "")
+        return (short, full.isEmpty ? (mark.locality ?? "") : full)
+    }
+}
+
+// MARK: - 数据壳
+
+struct PhotoMeta {
+    var device = ""
+    var aperture = ""
+    var shutter = ""
+    var iso = ""
+    var focal = ""
+    var fileName = ""
+    var resolution = ""
+    var fileSize = ""
+    var format = ""
+    var duration = ""
+
+    struct Chip: Identifiable {
+        let id: String
+        let value: String
+        let label: String
+    }
+
+    var chips: [Chip] {
+        var list: [Chip] = []
+        if !aperture.isEmpty { list.append(.init(id: "a", value: aperture, label: "光圈")) }
+        if !shutter.isEmpty { list.append(.init(id: "s", value: shutter, label: "快门")) }
+        if !iso.isEmpty { list.append(.init(id: "i", value: iso, label: "感光度")) }
+        if !focal.isEmpty { list.append(.init(id: "f", value: focal, label: "焦距")) }
+        return list
+    }
+}
+
+// MARK: - 小组件
+
+private struct SectionHead: View {
+    let symbol: String
+    let title: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .semibold))
+            Text(title)
+                .font(.system(size: 15, weight: .medium))
         }
+        .foregroundStyle(.white.opacity(0.45))
+    }
+}
+
+private struct MetricChip: View {
+    let value: String
+    let label: String
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(0.45))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14)
+            .strokeBorder(.white.opacity(0.12), lineWidth: 1))
+    }
+}
+
+private struct BulletRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Circle()
+                .fill(.white.opacity(0.35))
+                .frame(width: 4, height: 4)
+            Text(label)
+                .font(.system(size: 16))
+                .foregroundStyle(.white.opacity(0.62))
+            Spacer(minLength: 12)
+            Text(value.isEmpty ? "—" : value)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+}
+
+private struct DashedRule: View {
+    var body: some View {
+        Canvas { ctx, size in
+            var path = Path()
+            path.move(to: CGPoint(x: 0, y: size.height / 2))
+            path.addLine(to: CGPoint(x: size.width, y: size.height / 2))
+            ctx.stroke(path, with: .color(.white.opacity(0.16)),
+                       style: StrokeStyle(lineWidth: 1, dash: [2, 5]))
+        }
+        .frame(height: 1)
+        .padding(.horizontal, 20)
     }
 }
