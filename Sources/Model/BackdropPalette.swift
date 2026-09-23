@@ -11,7 +11,7 @@ enum PaletteMath {
         let input = CIImage(cgImage: cg)
         let filter = CIFilter.areaAverage()
         filter.inputImage = input
-        filter.extent = CIVector(cgRect: input.extent)
+        filter.extent = input.extent
         guard let output = filter.outputImage else { return (0.12, 0.12, 0.12) }
         var bitmap = [UInt8](repeating: 0, count: 4)
         context.render(output,
