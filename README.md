@@ -40,15 +40,15 @@
    ```
 
 2. 打开仓库的 **Actions** 页，等 `构建无签名 IPA` 跑完（首次约 5–8 分钟）。
-3. 点进那次运行，在 **Artifacts** 里下载 `ZhaoHuaXiShi-unsigned-ipa`，解压得到 `ZhaoHuaXiShi-unsigned.ipa`。
+3. 点进那次运行，在 **Artifacts** 里下载 `HuajianJi-unsigned-ipa`，解压得到 `huajianji-1.0.ipa`。
 
 流水线失败时先看第一步「确认工具链版本」的输出：runner 已钉在 `macos-26`（默认 Xcode 26.6 + iOS 26 SDK）。如果哪天这个 label 被 GitHub 下线，换成 `macos-latest` 前先确认它的默认 Xcode ≥ 26。
 
 ## 自签安装
 
-把 `ZhaoHuaXiShi-unsigned.ipa` 丢进你手机上/电脑上的自签工具（esign、各类自签助手都一样）：
+把 `huajianji-1.0.ipa` 丢进你手机上/电脑上的自签工具（esign、各类自签助手都一样）：
 
-1. 签名时如果提示 bundle id 冲突，改成你自己的（比如 `com.你名字.zhaohuaxishi`）——改 bundle id 不影响运行。
+1. 签名时如果提示 bundle id 冲突，改成你自己的（比如 `com.你名字.huajianji`）——改 bundle id 不影响运行。
 2. 用你自己的证书 + 描述文件签，签完装到手机。
 3. 免费 Apple ID 签的话 7 天过期，过期后重新签一次即可，进度不会丢（记录在 App 沙盒里，重装同 bundle id 会保留）。
 
@@ -57,12 +57,12 @@
 ```bash
 brew install xcodegen
 xcodegen generate
-xcodebuild build -project ZhaoHuaXiShi.xcodeproj -target ZhaoHuaXiShi \
+xcodebuild build -project HuajianJi.xcodeproj -target HuajianJi \
   -configuration Release -sdk iphoneos SYMROOT=$(pwd)/build_out \
   ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=
 rm -rf Payload && mkdir Payload
-cp -R build_out/Release-iphoneos/ZhaoHuaXiShi.app Payload/
-ditto -c -k --keepParent Payload ZhaoHuaXiShi-unsigned.ipa
+cp -R build_out/Release-iphoneos/HuajianJi.app Payload/
+ditto -c -k --keepParent Payload HuajianJi-unsigned.ipa
 ```
 
 ## 目录
