@@ -31,8 +31,8 @@ jobs:
           set -euo pipefail
           # -target 模式下不能用 -derivedDataPath，直接指定 SYMROOT
           xcodebuild build \
-            -project ZhaoHuaXiShi.xcodeproj \
-            -target ZhaoHuaXiShi \
+            -project HuajianJi.xcodeproj \
+            -target HuajianJi \
             -configuration Release \
             -sdk iphoneos \
             SYMROOT="$(pwd)/build_out" \
