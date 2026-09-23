@@ -85,7 +85,7 @@ final class CameraRunner: NSObject {
                     self.session.addOutput(output)
                     output.setMetadataObjectsDelegate(self, queue: self.queue)
                     let wanted: [AVMetadataObject.ObjectType] =
-                        [.qr, .microQR, .ean8, .ean13, .upce, .code128, .code39, .pdf417, .datamatrix, .aztec]
+                        [.qr, .microQR, .ean8, .ean13, .upce, .code128, .code39, .pdf417, .dataMatrix, .aztec]
                     output.metadataObjectTypes = output.availableMetadataObjectTypes.filter { wanted.contains($0) }
                 }
             case .video:
@@ -312,11 +312,11 @@ enum VisionLab {
     static func bodyPose(_ image: CGImage, completion: @escaping (BodyPose?) -> Void) {
         let request = VNDetectHumanBodyPoseRequest()
         perform(request, on: image) {
-            completion(BodyPose(of: request.results?.first))
+            completion(BodyPose(request.results?.first))
         }
     }
 
-    private static func perform(_ request: VNImageRequest, on image: CGImage,
+    private static func perform(_ request: VNImageBasedRequest, on image: CGImage,
                                 then body: @escaping () -> Void) {
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
         DispatchQueue.global(qos: .userInitiated).async {
@@ -338,7 +338,7 @@ struct BodyPose {
 
     init?(_ observation: VNHumanBodyPoseObservation?) {
         guard let observation else { return nil }
-        func point(_ name: VNHumanBodyPoseObservation.JointsName) -> CGPoint? {
+        func point(_ name: VNHumanBodyPoseObservation.JointName) -> CGPoint? {
             guard let value = try? observation.recognizedPoint(name), value.confidence > 0.25
             else { return nil }
             return CGPoint(x: value.location.x, y: value.location.y)
