@@ -184,7 +184,12 @@ struct RootView: View {
         if !store.writable {
             PermissionView(store: store)
         } else if store.tab == .stats {
-            StatsView(store: store, onOpenSettings: { showSettings = true })
+            StatsView(store: store,
+                      onOpenSettings: { showSettings = true },
+                      onOpenMemory: { group in
+                store.showMemory(group.assets)
+                viewer = ViewerRequest(assetID: group.assets[0].localIdentifier, index: 0)
+            })
         } else if store.tab == .editing {
             EditorView()
         } else {
