@@ -131,9 +131,9 @@ struct RootView: View {
                                 .animation(.snappy, value: store.deckRemaining)
                         }
                         .foregroundStyle(.white)
-                        .padding(.leading, 18)
+                        .padding(.leading, 20)
                         .padding(.trailing, 9)
-                        .frame(height: 42)
+                        .frame(height: 44)
                         .glassEffect(.regular, in: Capsule())
 
                         Button {
@@ -144,7 +144,7 @@ struct RootView: View {
                             Image(systemName: store.mode == .onThisDay ? "calendar.badge.clock" : "shuffle")
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundStyle(.white)
-                                .frame(width: 42, height: 42)
+                                .frame(width: 44, height: 44)
                                 .contentShape(Circle())
                         }
                         .buttonStyle(.plain)
