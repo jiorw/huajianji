@@ -17,7 +17,12 @@ struct HuajianJiApp: App {
 enum MediaCache {
     private static let cache: NSCache<NSString, UIImage> = {
         let cache = NSCache<NSString, UIImage>()
-        cache.countLimit = 48
+        cache.countLimit = 36
+        cache.totalCostLimit = 110 * 1024 * 1024
+        cache.costFunction = { _, image in
+            guard let cg = image.cgImage else { return 1 }
+            return cg.bytesPerRow * cg.height
+        }
         return cache
     }()
 
@@ -62,7 +67,14 @@ struct MediaImageView: View {
 
     @State private var image: UIImage?
     @State private var shownID: String?
-    @State private var requestID: PHImageRequestID?
+    @State private var slot = LoadSlot()
+
+    /// PhotoKit 先回一张糊的再回清晰的，回调还可能迟到。用引用类型记住「现在到底要
+    /// 哪张」：糊图只占位一次，清晰图到手后不会再被旧请求的糊图盖回去
+    private final class LoadSlot {
+        var wanted = ""
+        var sharp = false
+    }
 
     var body: some View {
         ZStack {
@@ -80,46 +92,67 @@ struct MediaImageView: View {
         }
         .animation(.easeOut(duration: 0.22), value: shownID)
         .onAppear(perform: sync)
-        .onDisappear(perform: cancel)
+        .onDisappear(perform: drop)
         .onChange(of: asset.localIdentifier) { _, _ in sync() }
     }
 
     private func sync() {
         let id = asset.localIdentifier
-        guard shownID != id else { return }
+        guard slot.wanted != id else { return }
+        slot.wanted = id
+        slot.sharp = false
         if let cached = MediaCache.get(id, targetSize, contentMode) {
-            shownID = id
+            slot.sharp = true
             image = cached
+            shownID = id
         } else {
-            request()
+            // 换资源时宁可先转圈，也绝不把上一张留在屏幕上，否则看起来像在重复翻同几张
+            image = nil
+            shownID = nil
+            request(id)
         }
     }
 
-    private func request() {
+    private func request(_ id: String) {
         cancel()
-        let id = asset.localIdentifier
         let options = PHImageRequestOptions()
         options.deliveryMode = .opportunistic
         options.resizeMode = .fast
         options.isNetworkAccessAllowed = true
         let size = CGSize(width: max(targetSize.width, 120) * 3,
                           height: max(targetSize.height, 120) * 3)
+        let slot = self.slot
+        let target = targetSize
+        let mode = contentMode
         requestID = PHImageManager.default().requestImage(
             for: asset,
             targetSize: size,
-            contentMode: contentMode == .fill ? .aspectFill : .aspectFit,
+            contentMode: mode == .fill ? .aspectFill : .aspectFit,
             options: options
         ) { result, info in
             guard (info?[PHImageCancelledKey] as? Bool) != true, let result else { return }
             let degraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
             DispatchQueue.main.async {
-                if self.shownID != id, self.image == nil || !degraded {
+                guard slot.wanted == id else { return }
+                if degraded {
+                    guard !slot.sharp, self.shownID != id else { return }
                     self.image = result
                     self.shownID = id
-                    if !degraded { MediaCache.set(result, id, self.targetSize, self.contentMode) }
+                } else {
+                    slot.sharp = true
+                    self.image = result
+                    self.shownID = id
+                    MediaCache.set(result, id, target, mode)
                 }
             }
         }
+    }
+
+    /// 卡片滑走时取消请求并让 sync 可以重跑（多数情况直接命中缓存）
+    private func drop() {
+        cancel()
+        slot.wanted = ""
+        slot.sharp = false
     }
 
     private func cancel() {
