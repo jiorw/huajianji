@@ -270,11 +270,12 @@ final class PhotoStore: NSObject, ObservableObject {
     private var undoStack: [String] = []
     private var batchMarked: [String] = []
     private var kindOf: [String: String] = [:]
-    /// 当前分类下还没筛过的资源在 fetchResult 里的下标，发牌时直接从这里取
-    private var candidates: [Int] = []
+    /// 当前分类下还没筛过的资源 id，发牌时直接从这里随机抽。
+    /// 存 id 不存下标：PHFetchResult 会随相册变化自己更新，下标会错位
+    private var candidates: [String] = []
     private var tabTotal = 0
     /// 每个分类的池子和抓取结果都缓存，切栏不再全库重扫
-    private struct Pool { let total: Int; var candidates: [Int] }
+    private struct Pool { let total: Int; var candidates: [String] }
     private var pools: [Int: Pool] = [:]
     private var fetchCache: [Int: PHFetchResult<PHAsset>] = [:]
     private var persistTask: Task<Void, Never>?
@@ -340,7 +341,7 @@ final class PhotoStore: NSObject, ObservableObject {
         } else {
             favoriteIDs.insert(id)
         }
-        writeToDisk()
+        schedulePersist()
         return favoriteIDs.contains(id)
     }
 
@@ -448,8 +449,12 @@ final class PhotoStore: NSObject, ObservableObject {
     }
 
     private func eligible(_ asset: PHAsset) -> Bool {
-        guard verdicts[vkey(asset.localIdentifier)] == nil, matchesTab(asset) else { return false }
+        guard verdicts[vkey(asset.localIdentifier)] == nil else { return false }
         guard mode == .onThisDay else { return true }
+        return isOnThisDay(asset)
+    }
+
+    private func isOnThisDay(_ asset: PHAsset) -> Bool {
         guard let date = asset.creationDate else { return false }
         let calendar = Calendar.current
         let now = calendar.dateComponents([.year, .month, .day], from: Date())
@@ -465,16 +470,13 @@ final class PhotoStore: NSObject, ObservableObject {
             return
         }
         var matching = 0
-        var fresh: [Int] = []
-        result.enumerateObjects { asset, index, _ in
+        var fresh: [String] = []
+        result.enumerateObjects { asset, _, _ in
             guard self.matchesTab(asset) else { return }
             matching += 1
-            if self.verdicts[self.vkey(asset.localIdentifier)] == nil { fresh.append(index) }
+            if self.eligible(asset) { fresh.append(asset.localIdentifier) }
         }
         tabTotal = matching
-        if mode == .onThisDay {
-            fresh = fresh.filter { eligible(result.object(at: $0)) }
-        }
         candidates = fresh
         pools[tab.rawValue] = Pool(total: matching, candidates: fresh)
     }
@@ -497,20 +499,23 @@ final class PhotoStore: NSObject, ObservableObject {
 
     /// 从候选池里随机取一组，取走的从池子里摘掉，下一组不会重复
     private func deal() {
-        guard let result = fetchResult, !candidates.isEmpty else {
+        guard !candidates.isEmpty else {
             deck = []
             cursor = 0
             refreshCounts()
             return
         }
         let wanted = min(currentBatchSize, candidates.count)
-        var picked: [PHAsset] = []
+        var picked: [String] = []
         picked.reserveCapacity(wanted)
         for _ in 0..<wanted {
-            let slot = Int.random(in: 0..<candidates.count)
-            picked.append(result.object(at: candidates.remove(at: slot)))
+            picked.append(candidates.remove(at: Int.random(in: 0..<candidates.count)))
         }
-        deck = picked
+        // 只存 id，取牌时才换成 PHAsset，相册变动后不会拿到错位的那张
+        var byID: [String: PHAsset] = [:]
+        PHAsset.fetchAssets(withLocalIdentifiers: picked, options: nil)
+            .enumerateObjects { asset, _, _ in byID[asset.localIdentifier] = asset }
+        deck = picked.compactMap { byID[$0] }
         cursor = 0
         batchMarked = []
         pools[tab.rawValue] = Pool(total: tabTotal, candidates: candidates)
@@ -666,6 +671,8 @@ final class PhotoStore: NSObject, ObservableObject {
             for (kind, count) in pendingCount { stats.deleted[kind, default: 0] += count }
             for (kind, bytes) in pendingBytes { stats.bytes[kind, default: 0] += bytes }
             undoStack.removeAll()
+            // 相册已经变了，缓存的抓取结果和池子全部作废，别等异步通知
+            invalidateAllPools()
             refreshLibrary(redeal: true)
         } catch {
             errorMessage = "删除没有生效：\(error.localizedDescription)"
