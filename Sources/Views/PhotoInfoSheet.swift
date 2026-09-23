@@ -119,20 +119,11 @@ struct PhotoInfoSheet: View {
             SectionHead(symbol: "location.north.line.fill", title: "拍摄位置")
 
             if let location = asset.location {
-                Map(initialPosition: .region(MKCoordinateRegion(
-                    center: location.coordinate,
-                    span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)))) {
-                    Marker(place.isEmpty ? "拍摄地" : place,
-                           systemImage: "mappin.circle.fill",
-                           coordinate: location.coordinate, tint: .green)
-                }
-                .allowsDragging(false)
-                .allowsZooming(false)
-                .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
-                .frame(height: 190)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-                .overlay(RoundedRectangle(cornerRadius: 18)
-                    .strokeBorder(.white.opacity(0.12), lineWidth: 1))
+                PhotoMapView(coordinate: location.coordinate)
+                    .frame(height: 190)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .overlay(RoundedRectangle(cornerRadius: 18)
+                        .strokeBorder(.white.opacity(0.12), lineWidth: 1))
 
                 HStack(alignment: .firstTextBaseline) {
                     Text(place.isEmpty ? "拍摄地" : place)
@@ -373,5 +364,57 @@ private struct DashedRule: View {
         }
         .frame(height: 1)
         .padding(.horizontal, 20)
+    }
+}
+
+// MARK: - 地图卡片
+
+/// 用 MKMapView 而不是 SwiftUI 的 Map：API 老而稳定，绿色水滴针也能直接控制
+struct PhotoMapView: UIViewRepresentable {
+    let coordinate: CLLocationCoordinate2D
+
+    func makeCoordinator() -> PinDelegate { PinDelegate() }
+
+    func makeUIView(context: Context) -> MKMapView {
+        let map = MKMapView()
+        map.delegate = context.coordinator
+        map.isZoomEnabled = false
+        map.isScrollEnabled = false
+        map.isRotateEnabled = false
+        map.isPitchEnabled = false
+        map.showsCompass = false
+        map.showsScale = false
+        map.mapType = .standard
+        return map
+    }
+
+    func updateUIView(_ map: MKMapView, context: Context) {
+        let region = MKCoordinateRegion(center: coordinate,
+                                        latitudinalMeters: 1400,
+                                        longitudinalMeters: 1400)
+        map.setRegion(region, animated: false)
+        if map.annotations.isEmpty {
+            let pin = MKPointAnnotation()
+            pin.coordinate = coordinate
+            map.addAnnotation(pin)
+        }
+    }
+}
+
+final class PinDelegate: NSObject, MKMapViewDelegate {
+    func mapView(_ map: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+        guard annotation is MKPointAnnotation else { return nil }
+        let id = "pin"
+        let view: MKMarkerAnnotationView
+        if let reused = map.dequeueReusableAnnotationView(withIdentifier: id) as? MKMarkerAnnotationView {
+            view = reused
+            view.annotation = annotation
+        } else {
+            view = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: id)
+            view.canShowCallout = false
+            view.markerTintColor = .systemGreen
+            view.glyphImage = UIImage(systemName: "camera.fill")
+        }
+        return view
     }
 }
