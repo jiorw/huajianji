@@ -54,6 +54,7 @@ struct ConfettiView: View {
             }
         }
         .onAppear { started = true }
+        .frame(maxWidth: .infinity)
         .allowsHitTesting(false)
     }
 }
