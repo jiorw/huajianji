@@ -78,10 +78,10 @@ struct CardStackView: View {
                 .onTapGesture { onOpenViewer(store.cursor) }
                 .zIndex(3)
         } else {
-            // 扇形：后卡缩小一点、往两侧摊开并微微外旋
+            // 扇形：后卡缩小一点、往两侧摊开并微微外旋（数值按原版截图像素量出来的）
             let left = index == 1
             base
-                .offset(x: left ? -size.width * 0.42 : size.width * 0.42,
+                .offset(x: left ? -size.width * 0.47 : size.width * 0.47,
                         y: left ? -14 : 8)
                 .rotationEffect(.degrees(left ? -7 : 7.5))
                 .scaleEffect(0.88)
