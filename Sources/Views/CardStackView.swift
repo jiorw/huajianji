@@ -106,7 +106,7 @@ struct CardStackView: View {
 
     private func turnPage(forward: Bool) {
         let allowed = forward ? store.canGoNext : store.canGoPrevious
-        let target = forward ? 520 : -520
+        let target: CGFloat = forward ? 520 : -520
         if allowed {
             withAnimation(.easeOut(duration: 0.2)) { offset = target }
             Task { @MainActor in
