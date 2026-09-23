@@ -222,7 +222,7 @@ final class PhotoStore: NSObject, ObservableObject {
     @Published var tab: RootTab = .photos {
         didSet {
             guard oldValue != tab, tab.mediaType != nil else { return }
-            deckHistory.removeAll()   // 换栏就是另一批牌，旧组不算历史
+            pendingHistoryReset = true   // 换栏就是另一批牌，旧栏的组不算历史
             // 等底栏玻璃的形变动画走完再去碰相册数据，否则主线程会把它卡成一顿一顿
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(460))
@@ -339,6 +339,8 @@ final class PhotoStore: NSObject, ObservableObject {
     private var undoStack: [String] = []
     /// 最近发过的几组；左滑退到本组第一张时用它翻回上一组
     private var deckHistory: [[PHAsset]] = []
+    /// 换栏后置位：下一次 deal 不清历史而是把旧栏那组丢掉，避免左滑串到别的册
+    private var pendingHistoryReset = false
     private var batchMarked: [String] = []
     private var kindOf: [String: String] = [:]
     /// 当前分类下还没筛过的资源 id，发牌时直接从这里随机抽。
@@ -633,6 +635,7 @@ final class PhotoStore: NSObject, ObservableObject {
         guard !candidates.isEmpty else {
             deck = []
             cursor = 0
+            if pendingHistoryReset { deckHistory.removeAll(); pendingHistoryReset = false }
             refreshCounts()
             return
         }
@@ -647,7 +650,10 @@ final class PhotoStore: NSObject, ObservableObject {
         PHAsset.fetchAssets(withLocalIdentifiers: picked, options: nil)
             .enumerateObjects { asset, _, _ in byID[asset.localIdentifier] = asset }
         // 换组前把旧组留一份，左滑退到第一张时还能翻回去
-        if !deck.isEmpty {
+        if pendingHistoryReset {
+            deckHistory.removeAll()
+            pendingHistoryReset = false
+        } else if !deck.isEmpty {
             deckHistory.append(deck)
             if deckHistory.count > 8 { deckHistory.removeFirst() }
         }
