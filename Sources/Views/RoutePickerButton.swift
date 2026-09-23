@@ -4,12 +4,9 @@ import AVFoundation
 
 /// 系统 AirPlay 路由选择按钮：点开后既能选视频投放到电视，也能开屏幕镜像
 struct RoutePickerButton: UIViewRepresentable {
-    var activeColor: Color = .white
-
     func makeUIView(context: Context) -> AVRoutePickerView {
         let view = AVRoutePickerView()
         view.delegate = context.coordinator
-        view.activeColor = activeColor
         view.prioritizesVideoDevices = true
         view.tintColor = .white
         return view
