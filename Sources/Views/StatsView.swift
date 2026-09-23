@@ -14,7 +14,7 @@ struct StatsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .center) {
-                    Text("使用统计")
+                    Text("岁华簿")
                         .font(.system(size: 32, weight: .bold))
                         .foregroundStyle(.white)
                     Spacer()
