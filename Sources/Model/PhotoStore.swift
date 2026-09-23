@@ -191,7 +191,7 @@ final class PhotoStore: NSObject, ObservableObject {
         }
         var count = 0
         result.enumerateObjects { asset, _, _ in
-            if verdicts[asset.localIdentifier] != nil { count += 1 }
+            if self.verdicts[asset.localIdentifier] != nil { count += 1 }
         }
         tabReviewed = count
     }
