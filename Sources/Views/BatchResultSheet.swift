@@ -8,18 +8,30 @@ struct BatchResultSheet: View {
 
     @State private var queued: [PHAsset] = []
 
+    private var headline: String {
+        var parts = ["\(store.deck.count) 张里留下 \(store.keptInBatch) 张"]
+        if !queued.isEmpty { parts.append("\(queued.count) 张待删") }
+        if let oldest = store.deck.compactMap(\.creationDate).min() {
+            parts.append("最久的一张 \(TimeText.since(oldest))")
+        }
+        return parts.joined(separator: " · ")
+    }
+
     var body: some View {
         VStack(spacing: 20) {
+            ConfettiView()
+                .frame(height: 150)
+                .padding(.top, 4)
+
             VStack(spacing: 8) {
-                Text("本组筛完了")
+                Text("这一组翻完了")
                     .font(.title2.weight(.bold))
-                Text(queued.isEmpty
-                     ? "没有标记任何要删除的照片"
-                     : "有 \(queued.count) 张被标记待删")
+                Text(headline)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
             }
-            .padding(.top, 34)
 
             if queued.isEmpty {
                 ContentUnavailableView("干干净净", systemImage: "checkmark.circle",
