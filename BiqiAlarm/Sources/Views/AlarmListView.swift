@@ -7,9 +7,11 @@ struct AlarmListView: View {
     @Environment(AppSettings.self) private var settings
     let openEditor: (AlarmItem) -> Void
     let openQuick: () -> Void
+    let glass: Namespace.ID
 
     @State private var draft: AlarmItem?
     @State private var greeting = ""
+    @State private var appeared = false
 
     var body: some View {
         NavigationStack {
@@ -22,9 +24,11 @@ struct AlarmListView: View {
                     if store.sortedAlarms.isEmpty {
                         emptyCard
                     } else {
-                        ForEach(store.sortedAlarms) { alarm in
-                            AlarmRow(alarm: alarm, open: { openEditor(alarm) })
-                                .listRowInsets(EdgeInsets())
+                        ForEach(Array(store.sortedAlarms.enumerated()), id: \.element.id) { index, alarm in
+                            AlarmRow(alarm: alarm, open: { openEditor(alarm) }, glass: glass)
+                                .opacity(appeared ? 1 : 0)
+                                .offset(y: appeared ? 0 : 20)
+                                .animation(GlassMotion.settle.delay(Double(index) * 0.06), value: appeared)
                         }
                     }
 
@@ -42,15 +46,22 @@ struct AlarmListView: View {
                         .font(.title2.bold())
                         .foregroundStyle(.black.opacity(0.85))
                         .frame(width: 58, height: 58)
-                        .glassEffect(.regular.tint(Palette.accent).interactive(), in: Circle())
+                        .contentShape(Circle())
                 }
+                .buttonStyle(GlassPillButton(tint: Palette.accent))
+                .matchedTransitionSource(id: "add", in: glass)
                 .padding(.trailing, 22)
                 .padding(.bottom, 26)
             }
         }
-        .onAppear { greeting = MorningGreeting.text() }
+        .onAppear {
+            greeting = MorningGreeting.text()
+            appeared = true
+        }
         .sheet(item: $draft) { alarm in
             AlarmEditorView(alarm: alarm)
+                .navigationTransition(.zoom(sourceID: "add", in: glass))
+                .presentationBackground(.clear)
         }
     }
 
@@ -70,8 +81,10 @@ struct AlarmListView: View {
                     .font(.title3.bold())
                     .foregroundStyle(.white)
                     .frame(width: 42, height: 42)
-                    .glassEffect(.regular.tint(Palette.accent.opacity(0.55)).interactive(), in: Circle())
+                    .contentShape(Circle())
             }
+            .buttonStyle(GlassPillButton(tint: Palette.accent.opacity(0.55)))
+            .matchedTransitionSource(id: "quick", in: glass)
         }
         .padding(.top, 8)
     }
@@ -156,6 +169,7 @@ private struct AlarmRow: View {
     @Environment(AlarmStore.self) private var store
     let alarm: AlarmItem
     let open: () -> Void
+    let glass: Namespace.ID
 
     @State private var confirmDelete = false
 
@@ -196,10 +210,12 @@ private struct AlarmRow: View {
                         .foregroundStyle(Palette.accent)
                 }
             }
-            .glassPanel(tint: alarm.enabled ? Color.white.opacity(0.10) : Color.white.opacity(0.04),
-                        cornerRadius: 24)
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(GlassCardButton(
+            tint: alarm.enabled ? Color.white.opacity(0.10) : Color.white.opacity(0.04)))
+        .matchedTransitionSource(id: alarm.id.uuidString, in: glass)
         .contextMenu {
             Button("复制", systemImage: "doc.on.doc") { store.duplicate(alarm) }
             Button("删除", systemImage: "trash", role: .destructive) { requestDelete() }
