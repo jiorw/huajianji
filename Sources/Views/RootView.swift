@@ -36,7 +36,6 @@ struct RootView: View {
                     .animation(.spring(duration: 0.45, bounce: 0.2), value: store.tab)
                 dock
             }
-            .padding(.horizontal, 16)
             .padding(.bottom, 6)
         }
         .preferredColorScheme(.dark)
@@ -98,6 +97,7 @@ struct RootView: View {
             Spacer()
         }
         .padding(.top, 6)
+        .padding(.horizontal, 18)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -108,7 +108,7 @@ struct RootView: View {
         if !store.writable {
             PermissionView(store: store)
         } else if store.tab == .stats {
-            StatsView(store: store)
+            StatsView(store: store, onOpenSettings: { showAlbums = true })
         } else {
             CardStackView(store: store, zoom: zoom) { cursor in
                 guard let asset = store.card(at: 0) else { return }
