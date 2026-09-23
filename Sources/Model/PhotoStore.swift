@@ -129,7 +129,6 @@ final class PhotoStore: NSObject, ObservableObject {
     @Published private(set) var authorization: PHAuthorizationStatus = .notDetermined
     @Published private(set) var deck: [PHAsset] = []
     @Published private(set) var cursor: Int = 0
-    @Published private(set) var reviewedCount = 0
     @Published private(set) var queuedCount = 0
     @Published private(set) var deletedCount = 0
     @Published private(set) var remainingCount = 0
@@ -256,7 +255,8 @@ final class PhotoStore: NSObject, ObservableObject {
         super.init()
         if let data = defaults.data(forKey: Keys.verdicts),
            let saved = try? JSONDecoder().decode([String: Verdict].self, from: data) {
-            verdicts = saved
+            // 旧版本记录不分栏，键里没有 "|" 前缀，认不出来就直接丢掉重来一组
+            verdicts = saved.filter { $0.key.contains("|") }
         }
         if let data = defaults.data(forKey: Keys.stats),
            let saved = try? JSONDecoder().decode(CleanupStats.self, from: data) {
@@ -380,7 +380,7 @@ final class PhotoStore: NSObject, ObservableObject {
     }
 
     private func eligible(_ asset: PHAsset) -> Bool {
-        guard verdicts[asset.localIdentifier] == nil, matchesTab(asset) else { return false }
+        guard verdicts[vkey(asset.localIdentifier)] == nil, matchesTab(asset) else { return false }
         guard mode == .onThisDay else { return true }
         guard let date = asset.creationDate else { return false }
         let calendar = Calendar.current
@@ -401,7 +401,7 @@ final class PhotoStore: NSObject, ObservableObject {
         result.enumerateObjects { asset, index, _ in
             guard self.matchesTab(asset) else { return }
             matching += 1
-            if self.verdicts[asset.localIdentifier] == nil { fresh.append(index) }
+            if self.verdicts[self.vkey(asset.localIdentifier)] == nil { fresh.append(index) }
         }
         tabTotal = matching
         if mode == .onThisDay {
@@ -457,9 +457,17 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
-    /// 本批里被标记待删、但还没真正删除的
+    /// 浏览记录按栏分开存：同一张截图在照片栏和截图栏各算各的
+    private func vkey(_ assetID: String) -> String { "\(tab.rawValue)|\(assetID)" }
+
+    private static func realID(from key: String) -> String {
+        guard let index = key.firstIndex(of: "|") else { return key }
+        return String(key[key.index(after: index)...])
+    }
+
+    /// 本批里被标记待删、但还没真正删除的（返回真实 localIdentifier）
     var queuedInBatch: [String] {
-        batchMarked.filter { verdicts[$0] == .queued }
+        batchMarked.compactMap { verdicts[$0] == .queued ? Self.realID(from: $0) : nil }
     }
 
     /// 本批里选择保留的张数
@@ -470,9 +478,9 @@ final class PhotoStore: NSObject, ObservableObject {
     /// 统计页用：把全部待删标记退回，不删任何东西
     func discardAllQueued() {
         let snapshot = verdicts
-        for (id, verdict) in snapshot where verdict == .queued {
-            verdicts.removeValue(forKey: id)
-            if let kind = kindOf.removeValue(forKey: id), let current = stats.reviewed[kind] {
+        for (key, verdict) in snapshot where verdict == .queued {
+            verdicts.removeValue(forKey: key)
+            if let kind = kindOf.removeValue(forKey: key), let current = stats.reviewed[kind] {
                 stats.reviewed[kind] = max(0, current - 1)
             }
         }
@@ -485,9 +493,9 @@ final class PhotoStore: NSObject, ObservableObject {
 
     /// 放弃：本批待删标记全部退回，不删任何东西，直接再来一组
     func abandonBatch() {
-        for id in batchMarked where verdicts[id] == .queued {
-            verdicts.removeValue(forKey: id)
-            if let kind = kindOf.removeValue(forKey: id), let current = stats.reviewed[kind] {
+        for key in batchMarked where verdicts[key] == .queued {
+            verdicts.removeValue(forKey: key)
+            if let kind = kindOf.removeValue(forKey: key), let current = stats.reviewed[kind] {
                 stats.reviewed[kind] = max(0, current - 1)
             }
         }
@@ -513,25 +521,26 @@ final class PhotoStore: NSObject, ObservableObject {
 
     /// 全屏筛选页标记一张：.queued 待删 / .kept 看过保留
     func mark(_ verdict: Verdict, asset: PHAsset) {
-        let id = asset.localIdentifier
-        guard verdicts[id] == nil else { return }
-        verdicts[id] = verdict
-        undoStack.append(id)
-        batchMarked.append(id)
+        let key = vkey(asset.localIdentifier)
+        guard verdicts[key] == nil else { return }
+        verdicts[key] = verdict
+        undoStack.append(key)
+        batchMarked.append(key)
         let kind = StatKind(asset: asset).rawValue
-        kindOf[id] = kind
+        kindOf[key] = kind
         stats.reviewed[kind, default: 0] += 1
         schedulePersist()
         refreshCounts()
     }
 
     func undoLast() {
-        guard let id = undoStack.popLast() else { return }
-        verdicts.removeValue(forKey: id)
-        batchMarked.removeAll { $0 == id }
-        if let kind = kindOf.removeValue(forKey: id), let current = stats.reviewed[kind] {
+        guard let key = undoStack.popLast() else { return }
+        verdicts.removeValue(forKey: key)
+        batchMarked.removeAll { $0 == key }
+        if let kind = kindOf.removeValue(forKey: key), let current = stats.reviewed[kind] {
             stats.reviewed[kind] = max(0, current - 1)
         }
+        let id = Self.realID(from: key)
         if let position = deck.firstIndex(where: { $0.localIdentifier == id }) {
             cursor = position
         } else if let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject {
@@ -543,7 +552,8 @@ final class PhotoStore: NSObject, ObservableObject {
 
     /// 把待删队列提交给系统相册，之后仍可在「最近删除」找回 30 天
     func commitQueuedDeletions() async {
-        let ids = verdicts.compactMap { $0.value == .queued ? $0.key : nil }
+        let keys = verdicts.compactMap { $0.value == .queued ? $0.key : nil }
+        let ids = keys.map(Self.realID)
         guard !ids.isEmpty, !isCommitting else { return }
         isCommitting = true
         defer {
@@ -552,7 +562,7 @@ final class PhotoStore: NSObject, ObservableObject {
         }
         if demoMode {
             // 演示模式：只记账，不碰相册
-            for id in ids { verdicts[id] = .deleted }
+            for key in keys { verdicts[key] = .deleted }
             undoStack.removeAll()
             refreshLibrary(redeal: true)
             return
@@ -570,7 +580,7 @@ final class PhotoStore: NSObject, ObservableObject {
             try await PHPhotoLibrary.shared().performChanges {
                 PHAssetChangeRequest.deleteAssets(targets)
             }
-            for id in ids { verdicts[id] = .deleted }
+            for key in keys { verdicts[key] = .deleted }
             favoriteIDs.subtract(ids)
             for (kind, count) in pendingCount { stats.deleted[kind, default: 0] += count }
             for (kind, bytes) in pendingBytes { stats.bytes[kind, default: 0] += bytes }
@@ -669,7 +679,6 @@ final class PhotoStore: NSObject, ObservableObject {
         }
         queuedCount = queued
         deletedCount = deleted
-        reviewedCount = verdicts.count
         libraryCount = tabTotal
         remainingCount = candidates.count
         canUndo = !undoStack.isEmpty
