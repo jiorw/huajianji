@@ -200,43 +200,29 @@ struct RootView: View {
         }
     }
 
-    // MARK: - 底部 Dock：一整条胶囊 + 一个滑动的选中块
+    // MARK: - 底部 Dock：一整条胶囊 + 一块会在条目之间形变的玻璃
 
     private static let dockItemWidth: CGFloat = 64
     private static let dockHeight: CGFloat = 58
 
     private var dock: some View {
-        let selected = RootTab.allCases.firstIndex(of: store.tab) ?? 0
-        return ZStack {
-            Capsule().fill(Color.black.opacity(0.34))
-            Capsule().strokeBorder(.white.opacity(0.13), lineWidth: 1)
+        GlassEffectContainer(spacing: 8) {
+            ZStack {
+                Capsule().fill(Color.black.opacity(0.30))
+                Capsule().strokeBorder(.white.opacity(0.13), lineWidth: 1)
 
-            GlassEffectContainer(spacing: 6) {
-                ZStack {
-                    // 玻璃块必须在图标和文字下面，否则它会折射自家内容，看着就是一团糊
-                    DockSelection(width: Self.dockItemWidth - 6,
-                                  height: Self.dockHeight - 10,
-                                  offset: dockPillOffset(for: selected))
-                        .glassEffectID("dock-selection", in: glass)
-
-                    HStack(spacing: 0) {
-                        ForEach(RootTab.allCases) { item in
-                            dockItem(item)
-                        }
+                HStack(spacing: 0) {
+                    ForEach(RootTab.allCases) { item in
+                        dockItem(item)
                     }
                 }
-                .animation(.spring(duration: 0.45, bounce: 0.18), value: store.tab)
+                .padding(.horizontal, 4)
             }
+            .frame(height: Self.dockHeight)
         }
-        .frame(height: Self.dockHeight)
         .padding(.horizontal, 6)
         .padding(.top, 10)
         .shadow(color: .black.opacity(0.28), radius: 12, y: 5)
-    }
-
-    private func dockPillOffset(for index: Int) -> CGFloat {
-        let total = Self.dockItemWidth * CGFloat(RootTab.allCases.count)
-        return -total / 2 + Self.dockItemWidth * (CGFloat(index) + 0.5)
     }
 
     private func dockItem(_ item: RootTab) -> some View {
@@ -251,26 +237,15 @@ struct RootView: View {
                     .font(.system(size: 11, weight: .medium))
             }
             .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white.opacity(0.7))
-            .frame(width: Self.dockItemWidth, height: Self.dockHeight)
-            .contentShape(Rectangle())
+            .frame(width: Self.dockItemWidth, height: Self.dockHeight - 8)
+            .contentShape(RoundedRectangle(cornerRadius: 24))
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// 底栏里那块会滑动、会形变的选中玻璃：只用深色磨砂，不上亮色
-private struct DockSelection: View {
-    let width: CGFloat
-    let height: CGFloat
-    let offset: CGFloat
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 24)
-            .fill(.clear)
-            .frame(width: width, height: height)
-            .offset(x: offset)
-            .glassEffect(.regular.tint(.black.opacity(0.30)).interactive(),
-                         in: .rect(cornerRadius: 24))
+        // 五个条目共用一个 glassEffectID：选中态换人时，系统把这块玻璃从旧条目
+        // 形变过去（弹性、折射、合并都是系统算），而不是我们自己挪一个方块
+        .glassEffect(selected ? .regular.tint(.black.opacity(0.26)).interactive() : nil,
+                     in: RoundedRectangle(cornerRadius: 24))
+        .glassEffectID("dock-selection", in: glass)
     }
 }
 
