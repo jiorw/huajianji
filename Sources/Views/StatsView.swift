@@ -75,7 +75,7 @@ struct StatsView: View {
         if !memories.isEmpty {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 8) {
-                    Label("今年的今天", systemImage: "clock.arrow.circlepath")
+                    Label("昔年今日", systemImage: "clock.arrow.circlepath")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Spacer()
