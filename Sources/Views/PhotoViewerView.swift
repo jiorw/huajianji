@@ -56,7 +56,7 @@ struct PhotoViewerView: View {
                             .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 46)))
                             .gesture(dragGesture)
                             .simultaneousGesture(pinchGesture)
-                            .onTapGesture(count: 2) { toggleZoom() }
+                            .onTapGesture(count: 2) { doubleTapped() }
                             .id(asset.localIdentifier)
                     }
                 }
@@ -178,8 +178,14 @@ struct PhotoViewerView: View {
     private func favoriteTapped() {
         guard let asset else { return }
         let added = store.toggleFavorite(asset)
-        let generator = UIImpactFeedbackGenerator(style: added ? .medium : .light)
-        generator.impactOccurred()
+        store.bump(added ? .medium : .light)
+    }
+
+    private func doubleTapped() {
+        switch store.doubleTapAction {
+        case .zoom: toggleZoom()
+        case .favorite: favoriteTapped()
+        }
     }
 
     // MARK: - 底栏
@@ -301,9 +307,7 @@ struct PhotoViewerView: View {
             ? CGSize(width: drag.width, height: -1400)
             : CGSize(width: 900, height: drag.height)
         withAnimation(.easeOut(duration: 0.22)) { drag = target }
-        if delete {
-            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-        }
+        if delete { store.bump(.heavy) }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(220))
             store.mark(delete ? .queued : .kept, asset: asset)
