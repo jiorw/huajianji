@@ -132,7 +132,8 @@ enum MusicFileExporter {
                                                 forProperty: MPMediaItemPropertyPersistentID)
         let query = MPMediaQuery(filterPredicates: [predicate])
         guard let item = query.items?.first,
-              let exporter = AVAssetExportSession(asset: item.asset,
+              let assetURL = item.value(forProperty: MPMediaItemPropertyAssetURL) as? URL,
+              let exporter = AVAssetExportSession(asset: AVURLAsset(url: assetURL),
                                                  presetName: AVAssetExportPresetAppleM4A) else {
             completion(false)
             return
@@ -140,9 +141,9 @@ enum MusicFileExporter {
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
         guard let dir else { completion(false); return }
         exporter.outputURL = dir.appendingPathComponent("biqi-music-\(itemId).m4a")
-        exporter.outputFileType = .m4a
+        exporter.outputFileType = AVFileType.m4a
         exporter.exportAsynchronously {
-            let ok = exporter.status == .completed
+            let ok = exporter.status == AVAssetExportSession.Status.completed
             DispatchQueue.main.async { completion(ok) }
         }
     }
