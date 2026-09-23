@@ -368,10 +368,11 @@ final class PhotoStore: NSObject, ObservableObject {
         refreshCounts()
     }
 
+    /// 照片栏 = 所有图片（含截图）；截图栏 = 只有截图；视频栏 = 只有视频
     private func matchesTab(_ asset: PHAsset) -> Bool {
         let isShot = asset.mediaSubtypes.contains(.photoScreenshot)
         switch tab {
-        case .photos: return asset.mediaType == .image && !isShot
+        case .photos: return asset.mediaType == .image
         case .screenshots: return isShot
         case .videos: return asset.mediaType == .video
         case .stats: return true
