@@ -184,7 +184,7 @@ struct AlarmEditorView: View {
                 .matchedTransitionSource(id: "missions", in: glass)
             }
             if alarm.missions.isEmpty {
-                Text("原版里这是最容易被划掉的一类。加一个：扫码 / 数学题 / 走到厨房拍张照片。")
+                Text("没使命的闹钟最容易被划掉。加一个：扫码 / 数学题 / 走到厨房拍张照片。")
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.65))
             } else {
@@ -308,7 +308,7 @@ struct AlarmEditorView: View {
 
     private var disciplineCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "别让自己糊弄过去", note: "原版要开会员的，这里全给你")
+            SectionHeader(title: "别让自己糊弄过去", note: "这几项决定早上能不能真起来")
             Picker("无人操作自动收起", selection: $alarm.autoDismissSeconds) {
                 Text("永不").tag(0)
                 Text("1 分钟").tag(60)
