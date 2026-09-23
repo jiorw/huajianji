@@ -42,7 +42,7 @@
 2. 打开仓库的 **Actions** 页，等 `构建无签名 IPA` 跑完（首次约 5–8 分钟）。
 3. 点进那次运行，在 **Artifacts** 里下载 `ZhaoHuaXiShi-unsigned-ipa`，解压得到 `ZhaoHuaXiShi-unsigned.ipa`。
 
-流水线失败时先看第一步「确认工具链版本」的输出：如果提示需要 Xcode 26，说明 GitHub 给的 runner 版本不够，把 `build-ipa.yml` 里的 `runs-on` 换成 `macos-26` 或 `macos-latest-large` 再跑。
+流水线失败时先看第一步「确认工具链版本」的输出：runner 已钉在 `macos-26`（默认 Xcode 26.6 + iOS 26 SDK）。如果哪天这个 label 被 GitHub 下线，换成 `macos-latest` 前先确认它的默认 Xcode ≥ 26。
 
 ## 自签安装
 
