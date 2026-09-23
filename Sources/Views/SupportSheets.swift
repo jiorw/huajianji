@@ -85,13 +85,18 @@ struct AboutSheet: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 
+    /// CI 会把 GitHub 的 run 号写进 CFBundleVersion，用来确认手机上装的是哪一次构建
+    private var build: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("花间集").font(.title2.weight(.bold))
-                        Text("v\(version) · 随机翻相册，边回忆边清理")
+                        Text("v\(version)（构建 \(build)） · 随机翻相册，边回忆边清理")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -107,7 +112,7 @@ struct AboutSheet: View {
                     block("怎么翻", [
                         "每次从相册里随机发一组，默认 20 张，数量在设置里可调。",
                         "首页三张卡片扇形叠着，右滑下一张、左滑上一张、点中间那张进全屏。",
-                        "全屏里：照片右滑下一张、上滑删除；视频改成上下滑切页、右滑删除。",
+                        "全屏里：左滑上一张、右滑下一张、上滑进待删、下滑退出；手里还有没确认的待删时，退出会先问你一句。",
                         "双击放大，也可以两指捏合，放大后能拖着看细节。"
                     ])
 
