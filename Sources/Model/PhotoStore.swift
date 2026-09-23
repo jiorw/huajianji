@@ -87,6 +87,19 @@ struct AlbumEntry: Identifiable, Hashable {
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
+enum BrowseMode: String, CaseIterable, Identifiable {
+    case blindBox
+    case onThisDay
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .blindBox: "随机盲盒"
+        case .onThisDay: "回到那天"
+        }
+    }
+}
+
 @MainActor
 final class PhotoStore: NSObject, ObservableObject {
 
@@ -139,12 +152,57 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var mode: BrowseMode {
+        didSet {
+            guard oldValue != mode else { return }
+            defaults.set(mode.rawValue, forKey: Keys.mode)
+            refreshLibrary(redeal: true)
+        }
+    }
+
+    /// 演示模式：走完全流程但不真的删文件
+    @Published var demoMode: Bool {
+        didSet {
+            guard oldValue != demoMode else { return }
+            defaults.set(demoMode, forKey: Keys.demo)
+        }
+    }
+
+    @Published var reminderOn: Bool {
+        didSet {
+            guard oldValue != reminderOn else { return }
+            defaults.set(reminderOn, forKey: Keys.reminderOn)
+            Reminder.apply(on: reminderOn, hour: reminderHour, minute: reminderMinute)
+        }
+    }
+
+    @Published var reminderHour: Int {
+        didSet {
+            guard oldValue != reminderHour else { return }
+            defaults.set(reminderHour, forKey: Keys.reminderHour)
+            if reminderOn { Reminder.apply(on: true, hour: reminderHour, minute: reminderMinute) }
+        }
+    }
+
+    @Published var reminderMinute: Int {
+        didSet {
+            guard oldValue != reminderMinute else { return }
+            defaults.set(reminderMinute, forKey: Keys.reminderMinute)
+            if reminderOn { Reminder.apply(on: true, hour: reminderHour, minute: reminderMinute) }
+        }
+    }
+
     private enum Keys {
         static let verdicts = "zhaohuaxishi.verdicts.v1"
         static let stats = "zhaohuaxishi.stats.v1"
         static let photoBatch = "zhaohuaxishi.batch.photo"
         static let videoBatch = "zhaohuaxishi.batch.video"
         static let favorites = "zhaohuaxishi.favorites.v1"
+        static let mode = "zhaohuaxishi.mode"
+        static let demo = "zhaohuaxishi.demoMode"
+        static let reminderOn = "zhaohuaxishi.reminder.on"
+        static let reminderHour = "zhaohuaxishi.reminder.hour"
+        static let reminderMinute = "zhaohuaxishi.reminder.minute"
     }
 
     private let defaults = UserDefaults.standard
@@ -182,8 +240,14 @@ final class PhotoStore: NSObject, ObservableObject {
     }
 
     override init() {
-        photoBatchSize = UserDefaults.standard.object(forKey: Keys.photoBatch) as? Int ?? Self.deckSize
-        videoBatchSize = UserDefaults.standard.object(forKey: Keys.videoBatch) as? Int ?? Self.deckSize
+        let stored = UserDefaults.standard
+        photoBatchSize = stored.object(forKey: Keys.photoBatch) as? Int ?? Self.deckSize
+        videoBatchSize = stored.object(forKey: Keys.videoBatch) as? Int ?? Self.deckSize
+        mode = BrowseMode(rawValue: stored.string(forKey: Keys.mode) ?? "") ?? .blindBox
+        demoMode = stored.bool(forKey: Keys.demo)
+        reminderOn = stored.bool(forKey: Keys.reminderOn)
+        reminderHour = stored.object(forKey: Keys.reminderHour) as? Int ?? 20
+        reminderMinute = stored.object(forKey: Keys.reminderMinute) as? Int ?? 30
         super.init()
         if let data = defaults.data(forKey: Keys.verdicts),
            let saved = try? JSONDecoder().decode([String: Verdict].self, from: data) {
@@ -317,6 +381,17 @@ final class PhotoStore: NSObject, ObservableObject {
         deal()
     }
 
+    /// 这张能不能进本组：没筛过，且符合当前模式的日期条件
+    private func acceptable(_ asset: PHAsset) -> Bool {
+        guard verdicts[asset.localIdentifier] == nil else { return false }
+        guard mode == .onThisDay else { return true }
+        guard let date = asset.creationDate else { return false }
+        let calendar = Calendar.current
+        let now = calendar.dateComponents([.year, .month, .day], from: Date())
+        let then = calendar.dateComponents([.year, .month, .day], from: date)
+        return now.month == then.month && now.day == then.day && (then.year ?? 0) < (now.year ?? 0)
+    }
+
     private func deal() {
         guard let result = fetchResult, result.count > 0 else {
             deck = []
@@ -332,9 +407,8 @@ final class PhotoStore: NSObject, ObservableObject {
         while picked.count < wanted, attempts < wanted * 50 {
             attempts += 1
             let asset = result.object(at: Int.random(in: 0..<ceiling))
-            let id = asset.localIdentifier
-            guard verdicts[id] == nil, !taken.contains(id) else { continue }
-            taken.insert(id)
+            guard acceptable(asset), !taken.contains(asset.localIdentifier) else { continue }
+            taken.insert(asset.localIdentifier)
             picked.append(asset)
         }
         // 库里剩下的不多了，随机试不出来就顺序补齐
@@ -342,9 +416,8 @@ final class PhotoStore: NSObject, ObservableObject {
             for index in 0..<ceiling {
                 if picked.count >= wanted { break }
                 let asset = result.object(at: index)
-                let id = asset.localIdentifier
-                guard verdicts[id] == nil, !taken.contains(id) else { continue }
-                taken.insert(id)
+                guard acceptable(asset), !taken.contains(asset.localIdentifier) else { continue }
+                taken.insert(asset.localIdentifier)
                 picked.append(asset)
             }
         }
@@ -471,6 +544,13 @@ final class PhotoStore: NSObject, ObservableObject {
             isCommitting = false
             flush()
         }
+        if demoMode {
+            // 演示模式：只记账，不碰相册
+            for id in ids { verdicts[id] = .deleted }
+            undoStack.removeAll()
+            refreshLibrary(redeal: true)
+            return
+        }
         do {
             // 删除前先取回类型和占用体积，删完就读不到了
             let targets = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
@@ -522,6 +602,54 @@ final class PhotoStore: NSObject, ObservableObject {
             list.append(AlbumEntry(id: collection.localIdentifier, title: title, estimatedCount: count))
         }
         return list
+    }
+
+    // MARK: - 记录导出 / 导入（自签没有 CloudKit 权限，用文件搬）
+
+    struct BackupPayload: Codable {
+        var version = 1
+        var exportedAt = Date()
+        var verdicts: [String: Verdict]
+        var stats: CleanupStats
+        var favorites: [String]
+    }
+
+    func exportBackup() -> URL? {
+        let payload = BackupPayload(verdicts: verdicts, stats: stats, favorites: Array(favoriteIDs))
+        guard let data = try? JSONEncoder().encode(payload) else { return nil }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("朝花夕拾记录-\(Self.stamp()).json")
+        do {
+            try data.write(to: url, options: .atomic)
+            return url
+        } catch {
+            errorMessage = "导出失败：\(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    func importBackup(from url: URL) {
+        let secured = url.startAccessingSecurityScopedResource()
+        defer { if secured { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url),
+              let payload = try? JSONDecoder().decode(BackupPayload.self, from: data) else {
+            errorMessage = "这个文件不是朝花夕拾导出的记录"
+            return
+        }
+        verdicts = payload.verdicts
+        stats = payload.stats
+        favoriteIDs = Set(payload.favorites)
+        undoStack.removeAll()
+        batchMarked = []
+        writeToDisk()
+        refreshLibrary(redeal: true)
+        errorMessage = "已导入 \(payload.verdicts.count) 条浏览记录"
+    }
+
+    private static func stamp() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyyMMdd-HHmm"
+        return f.string(from: Date())
     }
 
     // MARK: - 计数与持久化
