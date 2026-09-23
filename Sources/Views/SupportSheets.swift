@@ -67,7 +67,7 @@ struct FeedbackSheet: View {
 
     private func draft() -> String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        return "朝花夕拾 v\(version) · iOS \(UIDevice.current.systemVersion)\n\n\(text)"
+        return "花间集 v\(version) · iOS \(UIDevice.current.systemVersion)\n\n\(text)"
     }
 
     private func copyAll() {
@@ -90,11 +90,19 @@ struct AboutSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("朝花夕拾").font(.title2.weight(.bold))
+                        Text("花间集").font(.title2.weight(.bold))
                         Text("v\(version) · 随机翻相册，边回忆边清理")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
+
+                    Text("花间集，是一本属于你的私人相册。\n它不只是存放照片，而是帮你把生活里的繁花，温柔地整理成回忆。")
+                        .font(.callout)
+                        .lineSpacing(5)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 18))
 
                     block("怎么翻", [
                         "每次从相册里随机发一组，默认 20 张，数量在设置里可调。",
