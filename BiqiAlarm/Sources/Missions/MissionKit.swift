@@ -338,16 +338,23 @@ struct BodyPose {
 
     init?(_ observation: VNHumanBodyPoseObservation?) {
         guard let observation else { return nil }
-        func point(_ name: VNHumanBodyPoseObservation.JointName) -> CGPoint? {
-            guard let value = try? observation.recognizedPoint(name), value.confidence > 0.25
-            else { return nil }
-            return CGPoint(x: value.location.x, y: value.location.y)
+        // Vision 只给左右成对关节（没有 center），取均值当中心点
+        func average(_ names: [VNHumanBodyPoseObservation.JointName]) -> CGPoint? {
+            var points: [CGPoint] = []
+            for name in names {
+                guard let value = try? observation.recognizedPoint(name), value.confidence > 0.25
+                else { continue }
+                points.append(CGPoint(x: value.location.x, y: value.location.y))
+            }
+            guard !points.isEmpty else { return nil }
+            return CGPoint(x: points.map(\.x).reduce(0, +) / CGFloat(points.count),
+                           y: points.map(\.y).reduce(0, +) / CGFloat(points.count))
         }
-        let hip = point(.hipCenter) ?? point(.leftHip) ?? point(.rightHip)
-        let knee = point(.kneeCenter) ?? point(.leftKnee) ?? point(.rightKnee)
-        let neck = point(.neckCenter) ?? point(.leftShoulder) ?? point(.rightShoulder)
-        guard let hip, let knee, let neck, neck.y > hip.y else { return nil }
-        torso = max(0.08, neck.y - hip.y)
+        let hip = average([.leftHip, .rightHip])
+        let knee = average([.leftKnee, .rightKnee])
+        let shoulder = average([.neck]) ?? average([.leftShoulder, .rightShoulder])
+        guard let hip, let knee, let shoulder, shoulder.y > hip.y else { return nil }
+        torso = max(0.08, shoulder.y - hip.y)
         hipToKnee = max(0, hip.y - knee.y)
     }
 
