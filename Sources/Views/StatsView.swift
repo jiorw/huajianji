@@ -111,7 +111,8 @@ struct StatsView: View {
             HStack(spacing: 8) {
                 ForEach(group.assets.prefix(4), id: \.localIdentifier) { asset in
                     MediaImageView(asset: asset, targetSize: CGSize(width: 78, height: 78))
-                        .frame(width: 78, height: 78)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 78)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
             }
