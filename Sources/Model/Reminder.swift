@@ -2,7 +2,7 @@ import UserNotifications
 
 /// 每日提醒：本地通知，不需要推送证书
 enum Reminder {
-    static let identifier = "zhaohuaxishi.daily"
+    static let identifier = "huajianji.daily"
 
     @MainActor
     static func apply(on: Bool, hour: Int, minute: Int) {
