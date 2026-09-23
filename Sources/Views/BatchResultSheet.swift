@@ -113,3 +113,101 @@ struct BatchResultSheet: View {
         queued = list
     }
 }
+
+/// 大图页带着待删要退出时拦一道：照原版那张「有待删除的照片」
+struct PendingDeleteSheet: View {
+    @ObservedObject var store: PhotoStore
+    var onClose: () -> Void
+    var onAbandon: () -> Void
+    var onDeleted: () -> Void
+
+    @State private var queued: [PHAsset] = []
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                Text("有待删除的照片")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.white)
+
+                HStack {
+                    Spacer()
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive(), in: Circle())
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 22)
+            .padding(.bottom, 18)
+
+            ScrollView(showsIndicators: false) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)],
+                          alignment: .leading, spacing: 12) {
+                    ForEach(queued, id: \.localIdentifier) { asset in
+                        MediaImageView(asset: asset, targetSize: CGSize(width: 110, height: 110))
+                            .frame(height: 112)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .overlay(alignment: .bottomTrailing) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 24))
+                                    .foregroundStyle(.green, .black.opacity(0.55))
+                                    .padding(7)
+                            }
+                    }
+                }
+                .padding(.horizontal, 18)
+            }
+
+            HStack(spacing: 14) {
+                Button {
+                    store.abandonBatch()
+                    onAbandon()
+                } label: {
+                    Text("放弃，回到首页")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 15)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.interactive(), in: Capsule())
+
+                Button {
+                    Task {
+                        await store.commitQueuedDeletions()
+                        onDeleted()
+                    }
+                } label: {
+                    Text("确认删除")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 15)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.tint(.red.opacity(0.72)).interactive(), in: Capsule())
+                .disabled(store.isCommitting)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 14)
+            .padding(.bottom, 20)
+        }
+        .task { reload() }
+    }
+
+    private func reload() {
+        var list: [PHAsset] = []
+        PHAsset.fetchAssets(withLocalIdentifiers: store.queuedInBatch, options: nil)
+            .enumerateObjects { asset, _, _ in list.append(asset) }
+        queued = list
+    }
+}
