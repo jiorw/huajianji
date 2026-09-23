@@ -1,10 +1,8 @@
 import SwiftUI
-import MessageUI
 import UIKit
 
 enum Support {
-    /// TODO: 换成你自己的邮箱，打包前告诉我我直接改
-    static let contactEmail = "zhaohuaxishi.app@example.com"
+    /// 想改称呼告诉我，比如换成你自己的名字
     static let assistantName = "暖暖"
 }
 
@@ -15,14 +13,13 @@ struct FeedbackSheet: View {
 
     @State private var text = ""
     @State private var notice = ""
-    @State private var showMailer = false
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
                 Text("联系\(Support.assistantName)")
                     .font(.title2.weight(.bold))
-                Text("用起来哪里别扭、想要什么新功能，都写在这里。发不出去就先复制，回头贴给我也行。")
+                Text("用起来哪里别扭、想要什么新功能，都写在这里。写完点复制，贴到你想发的地方。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
@@ -40,19 +37,20 @@ struct FeedbackSheet: View {
 
                 HStack(spacing: 12) {
                     Button {
-                        copyAll()
+                        text = ""
+                        notice = ""
                     } label: {
-                        Text("复制").frame(maxWidth: .infinity).padding(.vertical, 5)
+                        Text("清空").frame(maxWidth: .infinity).padding(.vertical, 5)
                     }
                     .buttonStyle(.glass)
 
                     Button {
-                        showMailer = true
+                        copyAll()
                     } label: {
-                        Text("邮件发送").frame(maxWidth: .infinity).padding(.vertical, 5)
+                        Text("复制").frame(maxWidth: .infinity).padding(.vertical, 5)
                     }
                     .buttonStyle(.glassProminent)
-                    .disabled(!MFMailComposeViewController.canSendMail())
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
 
                 Spacer()
@@ -64,7 +62,6 @@ struct FeedbackSheet: View {
                     Button("完成") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showMailer) { MailComposer(recipient: Support.contactEmail, body: draft()) }
         }
     }
 
@@ -77,21 +74,6 @@ struct FeedbackSheet: View {
         UIPasteboard.general.string = draft()
         notice = "已复制，直接去粘贴就行"
     }
-}
-
-struct MailComposer: UIViewControllerRepresentable {
-    let recipient: String
-    let body: String
-
-    func makeUIViewController(context: Context) -> MFMailComposeViewController {
-        let controller = MFMailComposeViewController()
-        controller.setToRecipients([recipient])
-        controller.setSubject("朝花夕拾 反馈")
-        controller.setMessageBody(body, isHTML: false)
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: MFMailComposeViewController, context: Context) {}
 }
 
 // MARK: - 关于
