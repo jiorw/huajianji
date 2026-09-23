@@ -213,16 +213,17 @@ struct RootView: View {
 
             GlassEffectContainer(spacing: 6) {
                 ZStack {
+                    // 玻璃块必须在图标和文字下面，否则它会折射自家内容，看着就是一团糊
+                    DockSelection(width: Self.dockItemWidth - 6,
+                                  height: Self.dockHeight - 10,
+                                  offset: dockPillOffset(for: selected))
+                        .glassEffectID("dock-selection", in: glass)
+
                     HStack(spacing: 0) {
                         ForEach(RootTab.allCases) { item in
                             dockItem(item)
                         }
                     }
-                    // 只有一块会滑动的玻璃，ID 固定，切换栏时它从旧位置形变到新位置
-                    DockSelection(width: Self.dockItemWidth - 6,
-                                  height: Self.dockHeight - 10,
-                                  offset: dockPillOffset(for: selected))
-                        .glassEffectID("dock-selection", in: glass)
                 }
                 .animation(.spring(duration: 0.45, bounce: 0.18), value: store.tab)
             }
