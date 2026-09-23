@@ -50,6 +50,7 @@ struct CleanupStats: Codable {
 enum RootTab: Int, CaseIterable, Identifiable {
     case photos
     case screenshots
+    case editing
     case videos
     case stats
 
@@ -59,6 +60,7 @@ enum RootTab: Int, CaseIterable, Identifiable {
         switch self {
         case .photos: "照片"
         case .screenshots: "截图"
+        case .editing: "编辑"
         case .videos: "视频"
         case .stats: "统计"
         }
@@ -68,6 +70,7 @@ enum RootTab: Int, CaseIterable, Identifiable {
         switch self {
         case .photos: "photo.on.rectangle.angled"
         case .screenshots: "crop.fill"
+        case .editing: "camera.filters"
         case .videos: "play.rectangle.fill"
         case .stats: "chart.bar.xaxis"
         }
@@ -77,7 +80,7 @@ enum RootTab: Int, CaseIterable, Identifiable {
         switch self {
         case .photos, .screenshots: .image
         case .videos: .video
-        case .stats: nil
+        case .editing, .stats: nil
         }
     }
 }
@@ -413,7 +416,7 @@ final class PhotoStore: NSObject, ObservableObject {
         case .photos: return asset.mediaType == .image
         case .screenshots: return isShot
         case .videos: return asset.mediaType == .video
-        case .stats: return true
+        case .editing, .stats: return false
         }
     }
 
