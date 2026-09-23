@@ -185,7 +185,7 @@ struct EmptyDeckView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 28)
-            Button("再来 \(PhotoStore.deckSize) 张") { store.dealNewDeck() }
+            Button("再来 \(store.currentBatchSize) 张") { store.dealNewDeck() }
                 .buttonStyle(.glassProminent)
         }
         .padding(28)
