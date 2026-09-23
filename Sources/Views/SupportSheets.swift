@@ -70,7 +70,7 @@ struct FeedbackSheet: View {
 
     private func draft() -> String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        return "朝花夕拾 v\(version) · \(ProcessInfo.processInfo.systemVersion)\n\n\(text)"
+        return "朝花夕拾 v\(version) · iOS \(UIDevice.current.systemVersion)\n\n\(text)"
     }
 
     private func copyAll() {
