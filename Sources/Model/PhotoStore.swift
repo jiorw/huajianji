@@ -121,6 +121,7 @@ final class PhotoStore: NSObject, ObservableObject {
     @Published private(set) var canUndo = false
     @Published private(set) var isCommitting = false
     @Published private(set) var stats = CleanupStats()
+    @Published private(set) var favoriteIDs: Set<String> = []
     @Published var errorMessage: String?
 
     @Published var tab: RootTab = .photos {
@@ -143,6 +144,7 @@ final class PhotoStore: NSObject, ObservableObject {
         static let stats = "zhaohuaxishi.stats.v1"
         static let photoBatch = "zhaohuaxishi.batch.photo"
         static let videoBatch = "zhaohuaxishi.batch.video"
+        static let favorites = "zhaohuaxishi.favorites.v1"
     }
 
     private let defaults = UserDefaults.standard
@@ -190,6 +192,35 @@ final class PhotoStore: NSObject, ObservableObject {
         if let data = defaults.data(forKey: Keys.stats),
            let saved = try? JSONDecoder().decode(CleanupStats.self, from: data) {
             stats = saved
+        }
+        if let ids = defaults.stringArray(forKey: Keys.favorites) {
+            favoriteIDs = Set(ids)
+        }
+    }
+
+    // MARK: - 收藏
+
+    func isFavorite(_ id: String) -> Bool { favoriteIDs.contains(id) }
+
+    @discardableResult
+    func toggleFavorite(_ asset: PHAsset) -> Bool {
+        let id = asset.localIdentifier
+        if favoriteIDs.contains(id) {
+            favoriteIDs.remove(id)
+        } else {
+            favoriteIDs.insert(id)
+        }
+        writeToDisk()
+        return favoriteIDs.contains(id)
+    }
+
+    func favoriteAssets() -> [PHAsset] {
+        guard !favoriteIDs.isEmpty else { return [] }
+        var list: [PHAsset] = []
+        PHAsset.fetchAssets(withLocalIdentifiers: Array(favoriteIDs), options: nil)
+            .enumerateObjects { asset, _, _ in list.append(asset) }
+        return list.sorted {
+            ($0.creationDate ?? .distantPast) > ($1.creationDate ?? .distantPast)
         }
     }
 
@@ -349,6 +380,11 @@ final class PhotoStore: NSObject, ObservableObject {
         batchMarked.filter { verdicts[$0] == .queued }
     }
 
+    /// 本批里选择保留的张数
+    var keptInBatch: Int {
+        batchMarked.filter { verdicts[$0] == .kept }.count
+    }
+
     /// 统计页用：把全部待删标记退回，不删任何东西
     func discardAllQueued() {
         let snapshot = verdicts
@@ -449,6 +485,7 @@ final class PhotoStore: NSObject, ObservableObject {
                 PHAssetChangeRequest.deleteAssets(targets)
             }
             for id in ids { verdicts[id] = .deleted }
+            favoriteIDs.subtract(ids)
             for (kind, count) in pendingCount { stats.deleted[kind, default: 0] += count }
             for (kind, bytes) in pendingBytes { stats.bytes[kind, default: 0] += bytes }
             undoStack.removeAll()
@@ -526,6 +563,7 @@ final class PhotoStore: NSObject, ObservableObject {
         if let data = try? JSONEncoder().encode(stats) {
             defaults.set(data, forKey: Keys.stats)
         }
+        defaults.set(Array(favoriteIDs), forKey: Keys.favorites)
     }
 }
 
