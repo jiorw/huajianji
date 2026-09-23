@@ -15,9 +15,9 @@ enum StatKind: String, CaseIterable, Codable {
 
     var title: String {
         switch self {
-        case .photo: "照片"
-        case .screenshot: "截屏"
-        case .video: "视频"
+        case .photo: "花间册"
+        case .screenshot: "碎影集"
+        case .video: "流光卷"
         }
     }
 
