@@ -5,6 +5,7 @@ import SwiftUI
 struct AlarmEditorView: View {
     @Environment(AlarmStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @Namespace private var glass
 
     @State private var alarm: AlarmItem
     @State private var time: Date
@@ -53,11 +54,15 @@ struct AlarmEditorView: View {
             SoundPickerSheet(choice: alarm.sound) { picked in
                 alarm.sound = picked
             }
+            .navigationTransition(.zoom(sourceID: "sound", in: glass))
+            .presentationBackground(.clear)
         }
         .sheet(isPresented: $showMissionPicker) {
             MissionPickerView(existing: alarm.missions) { picked in
                 alarm.missions = picked
             }
+            .navigationTransition(.zoom(sourceID: "missions", in: glass))
+            .presentationBackground(.clear)
         }
         .sheet(item: $missionDraft) { config in
             MissionConfigSheet(config: config) { updated in
@@ -65,6 +70,8 @@ struct AlarmEditorView: View {
                     alarm.missions[index] = updated
                 }
             }
+            .navigationTransition(.zoom(sourceID: config.id.uuidString, in: glass))
+            .presentationBackground(.clear)
         }
         .alert("删掉这条闹钟？", isPresented: $confirmDelete) {
             Button("删", role: .destructive) {
@@ -170,9 +177,11 @@ struct AlarmEditorView: View {
                 } label: {
                     Text(alarm.missions.isEmpty ? "添加" : "换一批")
                         .font(.footnote.weight(.semibold))
+                        .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .glassChip(tint: Palette.accent.opacity(0.4))
                 }
+                .buttonStyle(GlassPillButton(tint: Palette.accent.opacity(0.4)))
+                .matchedTransitionSource(id: "missions", in: glass)
             }
             if alarm.missions.isEmpty {
                 Text("原版里这是最容易被划掉的一类。加一个：扫码 / 数学题 / 走到厨房拍张照片。")
@@ -198,9 +207,10 @@ struct AlarmEditorView: View {
                         }
                         .foregroundStyle(.white)
                         .padding(12)
-                        .background(.white.opacity(0.08),
-                                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .buttonStyle(GlassCardButton(tint: Color.white.opacity(0.08), cornerRadius: 16))
+                    .matchedTransitionSource(id: mission.id.uuidString, in: glass)
                 }
                 Button(role: .destructive) {
                     alarm.missions = []
@@ -265,8 +275,10 @@ struct AlarmEditorView: View {
                 }
                 .foregroundStyle(.white)
                 .padding(12)
-                .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .buttonStyle(GlassCardButton(tint: Color.white.opacity(0.08), cornerRadius: 16))
+            .matchedTransitionSource(id: "sound", in: glass)
             HStack {
                 Text("音量")
                 Slider(value: $alarm.volume, in: 0.05...1)
