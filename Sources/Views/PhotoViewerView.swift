@@ -128,7 +128,7 @@ struct PhotoViewerView: View {
         withAnimation(.easeOut(duration: 0.22)) { drag = target }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(220))
-            store.mark(delete ? .queued : .kept, assetID: asset.localIdentifier)
+            store.mark(delete ? .queued : .kept, asset: asset)
             drag = .zero
             if index + 1 < store.deck.count {
                 index += 1
