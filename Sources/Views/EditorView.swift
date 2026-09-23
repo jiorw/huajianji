@@ -169,7 +169,7 @@ struct EditorView: View {
 
     private func refreshPreview() {
         guard let source else { preview = nil; return }
-        guard choice.isOriginal else {
+        guard !choice.isOriginal else {
             preview = source
             return
         }
