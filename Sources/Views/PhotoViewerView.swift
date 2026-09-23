@@ -55,9 +55,14 @@ struct PhotoViewerView: View {
                     }
                     .animation(.easeOut(duration: 0.26), value: currentID)
                     .task(id: currentID) {
-                        // 提前把下一张按同样的缓存键拉好，垫底那层才能当帧出图
-                        if let next = nextAsset {
-                            MediaCache.prefetch([next], size: geo.size, mode: .fit, scale: 3)
+                        // 两张都要预取：下一张会当前台，下下张会当垫底，
+                        // 只预取一张的话翻过一次之后再删就会露出没解码完的底
+                        var ahead: [PHAsset] = []
+                        for step in [1, 2] where store.deck.indices.contains(index + step) {
+                            ahead.append(store.deck[index + step])
+                        }
+                        if !ahead.isEmpty {
+                            MediaCache.prefetch(ahead, size: geo.size, mode: .fit, scale: 3)
                         }
                     }
 
