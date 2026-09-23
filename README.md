@@ -1,4 +1,4 @@
-# 朝花夕拾
+# 花间集
 
 随机翻相册的 iOS App。每次从相册里随机发 **20 张**，一张张筛：**下滑删除、右滑下一张**。界面按参考图复刻，材质用苹果 iOS 26 的 **Liquid Glass**。
 
@@ -34,7 +34,7 @@
    ```bash
    git init
    git add .
-   git commit -m "朝花夕拾"
+   git commit -m "花间集"
    git remote add origin https://github.com/你的用户名/你的仓库.git
    git push -u origin main
    ```
