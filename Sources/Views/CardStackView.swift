@@ -26,7 +26,14 @@ struct CardStackView: View {
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
+            .contentShape(Rectangle())
+            .gesture(paging)
             .overlay(alignment: .bottom) { pageHint(card: card) }
+            .task(id: "\(store.cursor)-\(store.card(at: 0)?.localIdentifier ?? "")") {
+                // 提前把后面两张拉进缓存
+                let ahead = [store.card(at: 1), store.card(at: 2), store.card(at: 3)].compactMap { $0 }
+                MediaCache.prefetch(ahead, size: card)
+            }
         }
     }
 
@@ -69,7 +76,6 @@ struct CardStackView: View {
                 .rotationEffect(.degrees(Double(offset / 34)))
                 .matchedTransitionSource(id: asset.localIdentifier, in: zoom)
                 .onTapGesture { onOpenViewer(store.cursor) }
-                .gesture(paging)
                 .zIndex(3)
         } else {
             let left = index == 1
@@ -104,29 +110,23 @@ struct CardStackView: View {
             }
     }
 
+    /// 一段式翻页：飞出去 -> 后卡晋升为前卡，不再从另一侧滑回来
     private func turnPage(forward: Bool) {
         let allowed = forward ? store.canGoNext : store.canGoPrevious
-        let target: CGFloat = forward ? 520 : -520
-        if allowed {
-            withAnimation(.easeOut(duration: 0.2)) { offset = target }
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(200))
-                if forward { store.goNextPreview() } else { store.goPreviousPreview() }
-                // 新到前面的卡片从另一侧回弹入场
-                offset = -target
-                scale = 0.93
-                withAnimation(.spring(duration: 0.5, bounce: 0.3)) {
-                    offset = 0
-                    scale = 1
-                }
-            }
-        } else {
-            // 到头了：橡皮筋回弹
-            withAnimation(.spring(duration: 0.5, bounce: 0.42)) {
-                offset = forward ? 34 : -34
+        guard allowed else {
+            withAnimation(.spring(duration: 0.4, bounce: 0.35)) { offset = forward ? 24 : -24 }
+            withAnimation(.spring(duration: 0.32, bounce: 0.28).delay(0.09)) { offset = 0 }
+            return
+        }
+        let target: CGFloat = forward ? 440 : -440
+        withAnimation(.easeOut(duration: 0.17)) { offset = target }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(170))
+            withAnimation(.spring(duration: 0.34, bounce: 0.16)) {
+                offset = 0
                 scale = 1
+                if forward { store.goNextPreview() } else { store.goPreviousPreview() }
             }
-            withAnimation(.spring(duration: 0.4, bounce: 0.3).delay(0.12)) { offset = 0 }
         }
     }
 
@@ -134,28 +134,37 @@ struct CardStackView: View {
 
     @ViewBuilder
     private func pageHint(card: CGSize) -> some View {
-        HStack(spacing: 10) {
-            if store.canGoPrevious {
-                Label("上一张", systemImage: "arrow.left")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.85))
-            }
+        HStack(spacing: 12) {
+            navButton("上一张", systemImage: "chevron.left",
+                      enabled: store.canGoPrevious) { turnPage(forward: false) }
             Spacer()
             Text("\(store.cursor + 1) / \(store.deck.count)")
                 .font(.footnote.weight(.semibold))
                 .monospacedDigit()
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(.white.opacity(0.75))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
                 .glassEffect(.regular.tint(.black.opacity(0.28)), in: .rect(cornerRadius: 12))
-                .padding(.horizontal, 4)
             Spacer()
-            if store.canGoNext {
-                Label("下一张", systemImage: "arrow.right")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.85))
-            }
+            navButton("下一张", systemImage: "chevron.right",
+                      enabled: store.canGoNext) { turnPage(forward: true) }
         }
-        .padding(.horizontal, 30)
+        .padding(.horizontal, 22)
         .padding(.bottom, 6)
+    }
+
+    private func navButton(_ text: String, systemImage: String, enabled: Bool,
+                           action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(text, systemImage: systemImage)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.white.opacity(enabled ? 0.95 : 0.28))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 19))
+        .disabled(!enabled)
     }
 
     private static func cardSize(in size: CGSize) -> CGSize {
