@@ -73,11 +73,11 @@ struct StatsView: View {
     @ViewBuilder
     private var memoryCard: some View {
         if !memories.isEmpty {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
                     Label("昔年今日", systemImage: "clock.arrow.circlepath")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.82))
                     Spacer()
                     Text("\(memories.count) 个年份")
                         .font(.caption)
@@ -95,26 +95,22 @@ struct StatsView: View {
     }
 
     private func memoryRow(_ group: MemoryGroup) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Text("\(group.yearsAgo) 年前的今天")
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: "\(group.yearsAgo) 年前")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.white)
-                Text("\(group.year) · \(group.assets.count >= 60 ? "60+" : "\(group.assets.count)") 张")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption2.weight(.semibold))
+                Text(verbatim: "\(group.year) · \(group.assets.count >= 60 ? "60+" : "\(group.assets.count)") 张")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            HStack(spacing: 8) {
-                ForEach(group.assets.prefix(4), id: \.localIdentifier) { asset in
-                    MediaImageView(asset: asset, targetSize: CGSize(width: 78, height: 78))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 78)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
+            .frame(width: 62, alignment: .leading)
+
+            ForEach(group.assets.prefix(4), id: \.localIdentifier) { asset in
+                MediaImageView(asset: asset, targetSize: CGSize(width: 56, height: 56))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
         .contentShape(Rectangle())
