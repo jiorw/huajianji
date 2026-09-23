@@ -7,6 +7,45 @@ enum Verdict: String, Codable {
     case deleted
 }
 
+enum StatKind: String, CaseIterable, Codable {
+    case photo
+    case screenshot
+    case video
+
+    var title: String {
+        switch self {
+        case .photo: "照片"
+        case .screenshot: "截屏"
+        case .video: "视频"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .photo: "photo"
+        case .screenshot: "camera.viewfinder"
+        case .video: "play.circle"
+        }
+    }
+
+    init(asset: PHAsset) {
+        if asset.mediaType == .video {
+            self = .video
+        } else if asset.mediaSubtypes.contains(.photoScreenshot) {
+            self = .screenshot
+        } else {
+            self = .photo
+        }
+    }
+}
+
+/// 分类累计：查看数 / 删除数 / 腾出字节数
+struct CleanupStats: Codable {
+    var reviewed: [String: Int] = [:]
+    var deleted: [String: Int] = [:]
+    var bytes: [String: Int64] = [:]
+}
+
 enum RootTab: Int, CaseIterable, Identifiable {
     case photos
     case videos
@@ -63,6 +102,7 @@ final class PhotoStore: NSObject, ObservableObject {
     @Published private(set) var libraryCount = 0
     @Published private(set) var canUndo = false
     @Published private(set) var isCommitting = false
+    @Published private(set) var stats = CleanupStats()
     @Published var errorMessage: String?
 
     @Published var tab: RootTab = .photos {
@@ -82,6 +122,7 @@ final class PhotoStore: NSObject, ObservableObject {
 
     private enum Keys {
         static let verdicts = "zhaohuaxishi.verdicts.v1"
+        static let stats = "zhaohuaxishi.stats.v1"
     }
 
     private let defaults = UserDefaults.standard
@@ -89,6 +130,7 @@ final class PhotoStore: NSObject, ObservableObject {
     private var verdicts: [String: Verdict] = [:]
     private var undoStack: [String] = []
     private var batchMarked: [String] = []
+    private var kindOf: [String: String] = [:]
     private var tabReviewed = 0
     private var persistTask: Task<Void, Never>?
     private var registered = false
@@ -123,6 +165,26 @@ final class PhotoStore: NSObject, ObservableObject {
            let saved = try? JSONDecoder().decode([String: Verdict].self, from: data) {
             verdicts = saved
         }
+        if let data = defaults.data(forKey: Keys.stats),
+           let saved = try? JSONDecoder().decode(CleanupStats.self, from: data) {
+            stats = saved
+        }
+    }
+
+    // MARK: - 统计读数
+
+    func reviewedCount(_ kind: StatKind) -> Int { stats.reviewed[kind.rawValue] ?? 0 }
+    func deletedCount(_ kind: StatKind) -> Int { stats.deleted[kind.rawValue] ?? 0 }
+    func freedBytes(_ kind: StatKind) -> Int64 { stats.bytes[kind.rawValue] ?? 0 }
+
+    var totalReviewed: Int { StatKind.allCases.reduce(0) { $0 + reviewedCount($1) } }
+    var totalDeleted: Int { StatKind.allCases.reduce(0) { $0 + deletedCount($1) } }
+    var totalFreedBytes: Int64 { StatKind.allCases.reduce(Int64(0)) { $0 + freedBytes($1) } }
+
+    func share(of kind: StatKind) -> Double {
+        let total = totalFreedBytes
+        guard total > 0 else { return 0 }
+        return Double(freedBytes(kind)) / Double(total)
     }
 
     // MARK: - 权限
@@ -264,10 +326,29 @@ final class PhotoStore: NSObject, ObservableObject {
         batchMarked.filter { verdicts[$0] == .queued }
     }
 
+    /// 统计页用：把全部待删标记退回，不删任何东西
+    func discardAllQueued() {
+        let snapshot = verdicts
+        for (id, verdict) in snapshot where verdict == .queued {
+            verdicts.removeValue(forKey: id)
+            if let kind = kindOf.removeValue(forKey: id), let current = stats.reviewed[kind] {
+                stats.reviewed[kind] = max(0, current - 1)
+            }
+            tabReviewed = max(0, tabReviewed - 1)
+        }
+        undoStack.removeAll()
+        batchMarked = []
+        writeToDisk()
+        refreshCounts()
+    }
+
     /// 放弃：本批待删标记全部退回，不删任何东西，直接再来一组
     func abandonBatch() {
         for id in batchMarked where verdicts[id] == .queued {
             verdicts.removeValue(forKey: id)
+            if let kind = kindOf.removeValue(forKey: id), let current = stats.reviewed[kind] {
+                stats.reviewed[kind] = max(0, current - 1)
+            }
             tabReviewed = max(0, tabReviewed - 1)
         }
         undoStack.removeAll()
@@ -291,11 +372,15 @@ final class PhotoStore: NSObject, ObservableObject {
     // MARK: - 筛选
 
     /// 全屏筛选页标记一张：.queued 待删 / .kept 看过保留
-    func mark(_ verdict: Verdict, assetID: String) {
-        guard verdicts[assetID] == nil else { return }
-        verdicts[assetID] = verdict
-        undoStack.append(assetID)
-        if !batchMarked.contains(assetID) { batchMarked.append(assetID) }
+    func mark(_ verdict: Verdict, asset: PHAsset) {
+        let id = asset.localIdentifier
+        guard verdicts[id] == nil else { return }
+        verdicts[id] = verdict
+        undoStack.append(id)
+        batchMarked.append(id)
+        let kind = StatKind(asset: asset).rawValue
+        kindOf[id] = kind
+        stats.reviewed[kind, default: 0] += 1
         tabReviewed += 1
         schedulePersist()
         refreshCounts()
@@ -305,6 +390,9 @@ final class PhotoStore: NSObject, ObservableObject {
         guard let id = undoStack.popLast() else { return }
         verdicts.removeValue(forKey: id)
         batchMarked.removeAll { $0 == id }
+        if let kind = kindOf.removeValue(forKey: id), let current = stats.reviewed[kind] {
+            stats.reviewed[kind] = max(0, current - 1)
+        }
         tabReviewed = max(0, tabReviewed - 1)
         if let position = deck.firstIndex(where: { $0.localIdentifier == id }) {
             cursor = position
@@ -325,11 +413,21 @@ final class PhotoStore: NSObject, ObservableObject {
             flush()
         }
         do {
+            // 删除前先取回类型和占用体积，删完就读不到了
+            let targets = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
+            var pendingCount: [String: Int] = [:]
+            var pendingBytes: [String: Int64] = [:]
+            targets.enumerateObjects { asset, _, _ in
+                let kind = StatKind(asset: asset).rawValue
+                pendingCount[kind, default: 0] += 1
+                pendingBytes[kind, default: 0] += Self.byteSize(of: asset)
+            }
             try await PHPhotoLibrary.shared().performChanges {
-                let targets = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
                 PHAssetChangeRequest.deleteAssets(targets)
             }
             for id in ids { verdicts[id] = .deleted }
+            for (kind, count) in pendingCount { stats.deleted[kind, default: 0] += count }
+            for (kind, bytes) in pendingBytes { stats.bytes[kind, default: 0] += bytes }
             undoStack.removeAll()
             refreshLibrary(redeal: true)
         } catch {
@@ -337,9 +435,18 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
+    private static func byteSize(of asset: PHAsset) -> Int64 {
+        PHAssetResource.assetResources(for: asset).reduce(Int64(0)) { total, resource in
+            total + ((resource.value(forKey: "fileSize") as? NSNumber)?.int64Value ?? 0)
+        }
+    }
+
     func resetProgress() {
         verdicts.removeAll()
         undoStack.removeAll()
+        batchMarked = []
+        kindOf.removeAll()
+        stats = CleanupStats()
         writeToDisk()
         refreshLibrary(redeal: true)
     }
@@ -390,8 +497,12 @@ final class PhotoStore: NSObject, ObservableObject {
     }
 
     private func writeToDisk() {
-        guard let data = try? JSONEncoder().encode(verdicts) else { return }
-        defaults.set(data, forKey: Keys.verdicts)
+        if let data = try? JSONEncoder().encode(verdicts) {
+            defaults.set(data, forKey: Keys.verdicts)
+        }
+        if let data = try? JSONEncoder().encode(stats) {
+            defaults.set(data, forKey: Keys.stats)
+        }
     }
 }
 
