@@ -125,7 +125,7 @@ enum ContentFilter: String, CaseIterable, Identifiable {
         case .screenshot:
             return asset.mediaSubtypes.contains(.photoScreenshot)
         case .selfie:
-            return asset.mediaSubtypes.contains(.photoSelfie)
+            return false   // 由 PhotoStore 查自拍智能相册，见 isSelfie(_:)
         case .live:
             return asset.mediaSubtypes.contains(.photoLive)
         case .animated:
@@ -338,6 +338,7 @@ final class PhotoStore: NSObject, ObservableObject {
     private struct Pool { let total: Int; var candidates: [String] }
     private var pools: [String: Pool] = [:]
     private var fetchCache: [Int: PHFetchResult<PHAsset>] = [:]
+    private var selfieIDs: Set<String>?
     private var poolKey: String { "\(tab.rawValue)|\(contentFilter.rawValue)" }
     private var persistTask: Task<Void, Never>?
     private var registered = false
@@ -511,9 +512,29 @@ final class PhotoStore: NSObject, ObservableObject {
 
     private func eligible(_ asset: PHAsset) -> Bool {
         guard verdicts[vkey(asset.localIdentifier)] == nil else { return false }
-        if tab != .videos, !contentFilter.matches(asset) { return false }
+        if tab != .videos, !filterMatches(asset) { return false }
         guard mode == .onThisDay else { return true }
         return isOnThisDay(asset)
+    }
+
+    private func filterMatches(_ asset: PHAsset) -> Bool {
+        contentFilter == .selfie ? isSelfie(asset) : contentFilter.matches(asset)
+    }
+
+    /// 自拍没有 mediaSubtype 可判，只能查系统「自拍」智能相册，取一次缓存住
+    private func isSelfie(_ asset: PHAsset) -> Bool {
+        if selfieIDs == nil {
+            var ids = Set<String>()
+            PHAssetCollection.fetchAssetCollections(with: .smartAlbum,
+                                                    subtype: .smartAlbumSelfPortraits,
+                                                    options: nil)
+                .enumerateObjects { collection, _, _ in
+                    PHAsset.fetchAssets(in: collection, options: nil)
+                        .enumerateObjects { item, _, _ in ids.insert(item.localIdentifier) }
+                }
+            selfieIDs = ids
+        }
+        return selfieIDs?.contains(asset.localIdentifier) ?? false
     }
 
     private func isOnThisDay(_ asset: PHAsset) -> Bool {
@@ -547,6 +568,7 @@ final class PhotoStore: NSObject, ObservableObject {
     private func invalidateAllPools() {
         pools.removeAll()
         fetchCache.removeAll()
+        selfieIDs = nil
     }
 
     /// 只有当前分类的池子需要重算
