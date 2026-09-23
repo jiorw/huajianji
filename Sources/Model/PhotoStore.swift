@@ -236,19 +236,19 @@ final class PhotoStore: NSObject, ObservableObject {
     }
 
     private enum Keys {
-        static let verdicts = "zhaohuaxishi.verdicts.v1"
-        static let stats = "zhaohuaxishi.stats.v1"
-        static let photoBatch = "zhaohuaxishi.batch.photo"
-        static let videoBatch = "zhaohuaxishi.batch.video"
-        static let favorites = "zhaohuaxishi.favorites.v1"
-        static let mode = "zhaohuaxishi.mode"
-        static let demo = "zhaohuaxishi.demoMode"
-        static let reminderOn = "zhaohuaxishi.reminder.on"
-        static let reminderHour = "zhaohuaxishi.reminder.hour"
-        static let reminderMinute = "zhaohuaxishi.reminder.minute"
-        static let haptics = "zhaohuaxishi.haptics"
-        static let doubleTap = "zhaohuaxishi.doubleTap"
-        static let timeFormat = "zhaohuaxishi.timeFormat"
+        static let verdicts = "huajianji.verdicts.v1"
+        static let stats = "huajianji.stats.v1"
+        static let photoBatch = "huajianji.batch.photo"
+        static let videoBatch = "huajianji.batch.video"
+        static let favorites = "huajianji.favorites.v1"
+        static let mode = "huajianji.mode"
+        static let demo = "huajianji.demoMode"
+        static let reminderOn = "huajianji.reminder.on"
+        static let reminderHour = "huajianji.reminder.hour"
+        static let reminderMinute = "huajianji.reminder.minute"
+        static let haptics = "huajianji.haptics"
+        static let doubleTap = "huajianji.doubleTap"
+        static let timeFormat = "huajianji.timeFormat"
     }
 
     private let defaults = UserDefaults.standard
