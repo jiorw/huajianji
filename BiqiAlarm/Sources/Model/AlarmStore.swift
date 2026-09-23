@@ -56,6 +56,10 @@ final class AlarmStore {
         load()
         NotificationEngine.registerCategories()
         await refreshAuthorization()
+        // 闹钟 App 没有通知就等于没设闹钟，第一次进来就把话说明白
+        if notificationState == .unknown {
+            await requestNotificationPermission()
+        }
         await resync()
         loaded = true
         startTicking()
