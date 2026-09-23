@@ -110,7 +110,8 @@ final class PhotoStore: NSObject, ObservableObject {
 
     var currentBatchSize: Int { tab == .videos ? videoBatchSize : photoBatchSize }
 
-    @Published private(set) var authorization: PHAuthorizationStatus = .notDetermined    @Published private(set) var deck: [PHAsset] = []
+    @Published private(set) var authorization: PHAuthorizationStatus = .notDetermined
+    @Published private(set) var deck: [PHAsset] = []
     @Published private(set) var cursor: Int = 0
     @Published private(set) var reviewedCount = 0
     @Published private(set) var queuedCount = 0
