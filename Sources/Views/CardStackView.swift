@@ -180,7 +180,7 @@ struct EmptyDeckView: View {
                 .foregroundStyle(.green)
             Text(store.remainingCount > 0 ? "这一批发完了" : "整个相册都过了一遍")
                 .font(.title3.weight(.semibold))
-            Text("点下面的按钮继续发牌，或者去统计页清理待删照片。")
+            Text("点下面的按钮继续发牌，或者去岁华簿清理待删照片。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
