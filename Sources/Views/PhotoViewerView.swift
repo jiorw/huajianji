@@ -22,6 +22,13 @@ struct PhotoViewerView: View {
     @State private var showInfo = false
     @State private var livePlaying = false
     @State private var toolsVisible = false
+    @State private var shareFile: ShareFile?
+
+    /// sheet(item:) 要 Identifiable，URL 本身不是
+    struct ShareFile: Identifiable {
+        let url: URL
+        var id: URL { url }
+    }
 
     private static let swipeThreshold: CGFloat = 96
 
@@ -47,9 +54,10 @@ struct PhotoViewerView: View {
                 VStack(spacing: 0) {
                     header
                     Spacer()
-                    navRow
                     footer
                 }
+
+                sideTools
             }
         }
         .onAppear {
@@ -61,6 +69,9 @@ struct PhotoViewerView: View {
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showInfo) {
             if let asset { PhotoInfoSheet(asset: asset) }
+        }
+        .sheet(item: $shareFile) { file in
+            ShareSheet(items: [file.url])
         }
         .sheet(isPresented: $finished) {
             BatchResultSheet(store: store) {
@@ -170,51 +181,81 @@ struct PhotoViewerView: View {
         }
     }
 
-    private var navRow: some View {
-        HStack(spacing: 8) {
-            Spacer(minLength: 0)
+    /// 右侧竖排的透明玻璃工具列，照原版那四个按钮
+    private var sideTools: some View {
+        VStack(spacing: 12) {
+            tool("info.circle", tint: .white.opacity(0.92)) { showInfo = true }
 
-            tool("info.circle", tint: .white.opacity(0.9)) { showInfo = true }
+            tool(favorited ? "heart.fill" : "heart",
+                 tint: favorited ? .red : .white) { favoriteTapped() }
 
-            Button { favoriteTapped() } label: {
-                Image(systemName: favorited ? "heart.fill" : "heart")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(favorited ? Color.red : .white)
-                    .frame(width: 38, height: 38)
-                    .scaleEffect(favorited ? 1.12 : 1)
-                    .animation(.spring(duration: 0.35, bounce: 0.5), value: favorited)
-            }
-            .buttonStyle(.glass)
+            tool("square.and.arrow.up", tint: .white.opacity(0.92)) { shareTapped() }
+
+            tool("trash", tint: .red) { commit(delete: true) }
+
+            tool("arrow.uturn.backward", tint: .white.opacity(0.92),
+                 enabled: store.canUndo) { undoTapped() }
 
             if isVideo {
                 tool(playback.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
-                     tint: .white.opacity(0.9)) { playback.toggleMute() }
+                     tint: .white.opacity(0.92)) { playback.toggleMute() }
             }
 
             if toolsVisible {
                 RoutePickerButton()
-                    .frame(width: 38, height: 38)
-                    .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 19))
+                    .frame(width: 46, height: 46)
+                    .glassEffect(.regular.tint(.black.opacity(0.42)).interactive(), in: Circle())
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
-
-            Spacer(minLength: 0)
         }
         .animation(.spring(duration: 0.35, bounce: 0.25), value: toolsVisible)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+        .padding(.trailing, 16)
         .opacity(zoomed ? 0 : 1)
+        .allowsHitTesting(!zoomed)
     }
 
-    private func tool(_ symbol: String, tint: Color,
+    private func tool(_ symbol: String, tint: Color, enabled: Bool = true,
                       action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(tint)
-                .frame(width: 38, height: 38)
+                .frame(width: 46, height: 46)
+                .contentShape(Circle())
         }
-        .buttonStyle(.glass)
+        .buttonStyle(.plain)
+        .glassEffect(.regular.tint(.black.opacity(0.42)).interactive(), in: Circle())
+        .opacity(enabled ? 1 : 0.35)
+        .disabled(!enabled)
+    }
+
+    private func undoTapped() {
+        guard store.canUndo else { return }
+        store.undoLast()
+        store.bump(.light)
+        if index > 0 { index -= 1 }
+    }
+
+    /// 分享走原始文件：先把 PHAssetResource 落到临时目录再交给系统面板
+    private func shareTapped() {
+        guard let asset else { return }
+        guard let resource = PHAssetResource.assetResources(for: asset).first else {
+            store.errorMessage = "这张取不到原始文件，分享不了"
+            return
+        }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(resource.originalFilename)
+        try? FileManager.default.removeItem(at: url)
+        PHAssetResourceManager.default().writeData(for: resource, toFile: url, options: nil) { error in
+            Task { @MainActor in
+                if let error {
+                    store.errorMessage = "分享没准备好：\(error.localizedDescription)"
+                } else {
+                    shareFile = ShareFile(url: url)
+                }
+            }
+        }
     }
 
     // MARK: - 底栏
@@ -350,4 +391,15 @@ struct PhotoViewerView: View {
             }
         }
     }
+}
+
+/// 系统分享面板
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
