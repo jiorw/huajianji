@@ -49,7 +49,6 @@ enum NotificationEngine {
 
     /// 为每条启用的闹钟排「下一次会响」的通知；最近的几条额外排轰炸序列
     static func sync(with alarms: [AlarmItem], eveningReminder: EveningReminder?) async {
-        let center = UNUserNotificationCenter.current()
         await clearAllAlarms()
 
         var scheduled = 0
