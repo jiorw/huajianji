@@ -202,8 +202,8 @@ struct RootView: View {
 
     // MARK: - 底部 Dock：一整条胶囊 + 一块会在条目之间形变的玻璃
 
-    private static let dockItemWidth: CGFloat = 64
-    private static let dockHeight: CGFloat = 58
+    private static let dockItemWidth: CGFloat = 70
+    private static let dockHeight: CGFloat = 66
 
     private var dock: some View {
         GlassEffectContainer(spacing: 0) {
@@ -223,22 +223,22 @@ struct RootView: View {
         return Button {
             store.tab = item
         } label: {
-            VStack(spacing: 5) {
+            VStack(spacing: 6) {
                 Image(systemName: item.symbol)
-                    .font(.system(size: 20, weight: selected ? .semibold : .medium))
+                    .font(.system(size: 25, weight: selected ? .semibold : .medium))
                 Text(item.title)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 12.5, weight: .medium))
             }
             .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white.opacity(0.7))
-            .frame(width: Self.dockItemWidth, height: Self.dockHeight - 8)
-            .contentShape(RoundedRectangle(cornerRadius: 28))
+            .frame(width: Self.dockItemWidth, height: Self.dockHeight - 10)
+            .contentShape(RoundedRectangle(cornerRadius: 30))
         }
         .buttonStyle(.plain)
         // 相邻的玻璃会被容器合并成一整条胶囊；选中项只是换了色调，
         // 形变交给系统算，而不是我们自己挪一个方块过去
         .glassEffect(selected ? .regular.tint(.blue.opacity(0.28)).interactive()
                               : .regular.tint(.black.opacity(0.28)).interactive(),
-                     in: RoundedRectangle(cornerRadius: 28))
+                     in: RoundedRectangle(cornerRadius: 30))
         .glassEffectID("dock-\(item.rawValue)", in: glass)
     }
 }
