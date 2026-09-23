@@ -8,6 +8,8 @@ struct SettingsView: View {
     @State private var albums: [AlbumEntry] = []
     @State private var backupURL: URL?
     @State private var showImporter = false
+    @State private var showFeedback = false
+    @State private var showAbout = false
 
     var body: some View {
         NavigationStack {
@@ -48,6 +50,18 @@ struct SettingsView: View {
                         DatePicker("提醒时间", selection: reminderTime, displayedComponents: .hourAndMinute)
                     }
                     Text("通知在本地排期，不经过任何服务器。自签安装有时会被系统限制，收不到就在设置里关掉再开一次。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("手势与反馈") {
+                    Toggle("震动反馈", isOn: $store.hapticsEnabled)
+                    Picker("双击手势", selection: $store.doubleTapAction) {
+                        ForEach(DoubleTapAction.allCases) { action in
+                            Text(action.title).tag(action)
+                        }
+                    }
+                    Text("关掉震动后，删除和收藏都不会再有触感；双击手势决定全屏页双击是放大还是收藏。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -95,6 +109,35 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section("支持") {
+                    Button {
+                        showFeedback = true
+                    } label: {
+                        HStack {
+                            Label("问题反馈", systemImage: "text.bubble")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    Button {
+                        showAbout = true
+                    } label: {
+                        HStack {
+                            Label("关于", systemImage: "info.circle")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Text("v\(Self.appVersion)")
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+
                 Section {
                     Text("朝花夕拾只在本机读取相册，不联网、不上传，所有记录存在 App 自己的沙盒里。")
                         .font(.footnote)
@@ -120,6 +163,12 @@ struct SettingsView: View {
                 case .failure(let error):
                     store.errorMessage = "读取文件失败：\(error.localizedDescription)"
                 }
+            }
+            .sheet(isPresented: $showFeedback) {
+                FeedbackSheet()
+            }
+            .sheet(isPresented: $showAbout) {
+                AboutSheet()
             }
         }
     }
