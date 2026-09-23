@@ -4,6 +4,7 @@ import Photos
 struct RootView: View {
     @StateObject private var store = PhotoStore()
     @StateObject private var palette = BackdropPalette()
+    @StateObject private var meter = FrameMeter()
     @Environment(\.scenePhase) private var scenePhase
     @Namespace private var glass
     @Namespace private var zoom
@@ -49,6 +50,15 @@ struct RootView: View {
             }
             .padding(.bottom, 6)
 
+            if store.showFPS {
+                VStack {
+                    fpsChip
+                    Spacer()
+                }
+                .padding(.top, 8)
+                .zIndex(20)
+            }
+
             if showSplash {
                 SplashView {
                     withAnimation(.easeInOut(duration: 0.7)) { showSplash = false }
@@ -65,6 +75,10 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { store.flush() }
         }
+        .onChange(of: store.showFPS) { _, on in
+            if on { meter.start() } else { meter.stop() }
+        }
+        .onAppear { if store.showFPS { meter.start() } }
         .sheet(isPresented: $showSettings) {
             SettingsView(store: store)
                 .presentationBackground(.black)
@@ -82,6 +96,17 @@ struct RootView: View {
         } message: {
             Text(store.errorMessage ?? "")
         }
+    }
+
+    private var fpsChip: some View {
+        Text(String(format: "%.0f fps", meter.fps))
+            .font(.system(size: 13, weight: .semibold).monospacedDigit())
+            .foregroundStyle(meter.fps >= 55 ? .green : (meter.fps >= 40 ? .yellow : .red))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .glassEffect(.regular.tint(.black.opacity(0.4)), in: .rect(cornerRadius: 16))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 18)
     }
 
     // MARK: - 顶部胶囊
