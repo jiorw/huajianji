@@ -31,6 +31,8 @@ struct SettingsView: View {
                 Card {
                     ToggleRow(title: "震动反馈", isOn: $store.hapticsEnabled)
                     Hairline()
+                    ToggleRow(title: "帧率显示", isOn: $store.showFPS)
+                    Hairline()
                     MenuRow(title: "双击手势",
                             value: store.doubleTapAction.title,
                             options: DoubleTapAction.allCases.map { ($0.title, $0.rawValue) }) { pick in
