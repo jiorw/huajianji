@@ -23,6 +23,7 @@ struct PhotoViewerView: View {
     @State private var livePlaying = false
     @State private var toolsVisible = false
     @State private var shareFile: ShareFile?
+    @State private var pendingExit = false
 
     /// sheet(item:) 要 Identifiable，URL 本身不是
     struct ShareFile: Identifiable {
@@ -82,6 +83,20 @@ struct PhotoViewerView: View {
         .sheet(item: $shareFile) { file in
             ShareSheet(items: [file.url])
         }
+        .sheet(isPresented: $pendingExit) {
+            PendingDeleteSheet(store: store,
+                               onClose: { pendingExit = false },
+                               onAbandon: {
+                pendingExit = false
+                dismiss()
+            }, onDeleted: {
+                pendingExit = false
+                dismiss()
+            })
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.hidden)
+            .presentationBackground(.black)
+        }
         .sheet(isPresented: $finished) {
             BatchResultSheet(store: store) {
                 finished = false
@@ -138,7 +153,7 @@ struct PhotoViewerView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Button { dismiss() } label: {
+            Button { leaveViewer() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
@@ -336,7 +351,7 @@ struct PhotoViewerView: View {
                 if up { commit(delete: true) }
                 else if right { commit(delete: false) }
                 else if left { stepBack() }
-                else if down { dismiss() }
+                else if down { leaveViewer() }
                 else { settle() }
             }
     }
@@ -376,6 +391,13 @@ struct PhotoViewerView: View {
         guard index > 0 else { settle(); return }
         settle()
         index -= 1
+    }
+
+    /// 手里还攥着待删的照片时不让直接走，先弹一张「有待删除的照片」
+    private func leaveViewer() {
+        guard !store.queuedInBatch.isEmpty else { dismiss(); return }
+        settle()
+        pendingExit = true
     }
 
     private func commit(delete: Bool) {
