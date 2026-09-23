@@ -259,8 +259,7 @@ enum PhotoEffectEngine {
         guard clamped < 0.999 else { return effect }
         guard clamped > 0.001 else { return base }
 
-        guard let generator = CIFilter(name: "CIConstantColorGenerator"),
-              let mask = generator.outputImage?.cropped(to: base.extent) else { return effect }
+        guard let generator = CIFilter(name: "CIConstantColorGenerator") else { return effect }
         generator.setValue(CIColor(red: 1, green: 1, blue: 1, alpha: clamped), forKey: "inputColor")
         guard let solid = generator.outputImage?.cropped(to: base.extent),
               let blend = CIFilter(name: "CIBlendWithAlphaMask") else { return effect }
