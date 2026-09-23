@@ -18,6 +18,11 @@ final class FeedPlayback: ObservableObject {
             PHImageManager.default().cancelImageRequest(requestID)
         }
         isLoading = true
+        // AirPlay 视频输出要音频会话允许外部播放
+        try? AVAudioSession.sharedInstance().setCategory(
+            .playback, mode: .moviePlayback, options: [.allowAirPlay])
+        try? AVAudioSession.sharedInstance().setActive(true)
+        player.allowsExternalPlayback = true
         let options = PHVideoRequestOptions()
         options.isNetworkAccessAllowed = true
         options.deliveryMode = .automatic
