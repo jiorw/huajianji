@@ -206,22 +206,15 @@ struct RootView: View {
     private static let dockHeight: CGFloat = 58
 
     private var dock: some View {
-        GlassEffectContainer(spacing: 8) {
-            ZStack {
-                Capsule().fill(Color.black.opacity(0.30))
-                Capsule().strokeBorder(.white.opacity(0.13), lineWidth: 1)
-
-                HStack(spacing: 0) {
-                    ForEach(RootTab.allCases) { item in
-                        dockItem(item)
-                    }
+        GlassEffectContainer(spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(RootTab.allCases) { item in
+                    dockItem(item)
                 }
-                .padding(.horizontal, 4)
             }
-            .frame(height: Self.dockHeight)
+            .padding(.horizontal, 6)
+            .padding(.top, 10)
         }
-        .padding(.horizontal, 6)
-        .padding(.top, 10)
         .shadow(color: .black.opacity(0.28), radius: 12, y: 5)
     }
 
@@ -238,14 +231,15 @@ struct RootView: View {
             }
             .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white.opacity(0.7))
             .frame(width: Self.dockItemWidth, height: Self.dockHeight - 8)
-            .contentShape(RoundedRectangle(cornerRadius: 24))
+            .contentShape(RoundedRectangle(cornerRadius: 28))
         }
         .buttonStyle(.plain)
-        // 五个条目共用一个 glassEffectID：选中态换人时，系统把这块玻璃从旧条目
-        // 形变过去（弹性、折射、合并都是系统算），而不是我们自己挪一个方块
-        .glassEffect(selected ? .regular.tint(.black.opacity(0.26)).interactive() : nil,
-                     in: RoundedRectangle(cornerRadius: 24))
-        .glassEffectID("dock-selection", in: glass)
+        // 相邻的玻璃会被容器合并成一整条胶囊；选中项只是换了色调，
+        // 形变交给系统算，而不是我们自己挪一个方块过去
+        .glassEffect(selected ? .regular.tint(.blue.opacity(0.28)).interactive()
+                              : .regular.tint(.black.opacity(0.28)).interactive(),
+                     in: RoundedRectangle(cornerRadius: 28))
+        .glassEffectID("dock-\(item.rawValue)", in: glass)
     }
 }
 
