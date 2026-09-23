@@ -106,22 +106,23 @@ struct StatsView: View {
                 .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(.white)
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.12))
+            Capsule()
+                .fill(Color.white.opacity(0.12))
+                .frame(height: 6)
+                .overlay(alignment: .leading) {
                     HStack(spacing: 2) {
                         ForEach(StatKind.allCases, id: \.self) { kind in
                             let share = store.share(of: kind)
                             if share > 0.001 {
                                 Capsule()
                                     .fill(barColor(kind))
-                                    .frame(width: max(0, geo.size.width * share - 2))
+                                    .containerRelativeFrame(.horizontal) { length, _ in
+                                        max(0, length * share - 2)
+                                    }
                             }
                         }
                     }
                 }
-            }
-            .frame(height: 6)
 
             HStack(spacing: 14) {
                 ForEach(StatKind.allCases, id: \.self) { kind in
