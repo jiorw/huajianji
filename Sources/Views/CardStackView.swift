@@ -30,8 +30,8 @@ struct CardStackView: View {
             .gesture(paging)
             .overlay(alignment: .bottom) { pageHint(card: card) }
             .task(id: "\(store.cursor)-\(store.card(at: 0)?.localIdentifier ?? "")") {
-                // 提前把后面两张拉进缓存
-                let ahead = [store.card(at: 1), store.card(at: 2), store.card(at: 3)].compactMap { $0 }
+                // 只提前预取两张，预取太多会和当前这张抢 PhotoKit 的解码额度
+                let ahead = [store.card(at: 1), store.card(at: 2)].compactMap { $0 }
                 MediaCache.prefetch(ahead, size: card)
             }
         }
@@ -78,12 +78,13 @@ struct CardStackView: View {
                 .onTapGesture { onOpenViewer(store.cursor) }
                 .zIndex(3)
         } else {
+            // 扇形：后卡缩小一点、往两侧摊开并微微外旋
             let left = index == 1
             base
-                .offset(x: left ? -size.width * 0.54 : size.width * 0.52,
-                        y: left ? -12 : 10)
-                .rotationEffect(.degrees(left ? -9 : 10))
-                .scaleEffect(0.94)
+                .offset(x: left ? -size.width * 0.42 : size.width * 0.42,
+                        y: left ? -14 : 8)
+                .rotationEffect(.degrees(left ? -7 : 7.5))
+                .scaleEffect(0.88)
                 .zIndex(Double(3 - index))
         }
     }
@@ -134,42 +135,19 @@ struct CardStackView: View {
 
     @ViewBuilder
     private func pageHint(card: CGSize) -> some View {
-        HStack(spacing: 12) {
-            navButton("上一张", systemImage: "chevron.left",
-                      enabled: store.canGoPrevious) { turnPage(forward: false) }
-            Spacer()
-            Text("\(store.cursor + 1) / \(store.deck.count)")
-                .font(.footnote.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(.white.opacity(0.75))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .glassEffect(.regular.tint(.black.opacity(0.28)), in: .rect(cornerRadius: 12))
-            Spacer()
-            navButton("下一张", systemImage: "chevron.right",
-                      enabled: store.canGoNext) { turnPage(forward: true) }
-        }
-        .padding(.horizontal, 22)
-        .padding(.bottom, 6)
-    }
-
-    private func navButton(_ text: String, systemImage: String, enabled: Bool,
-                           action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(text, systemImage: systemImage)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(.white.opacity(enabled ? 0.95 : 0.28))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-        }
-        .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 19))
-        .disabled(!enabled)
+        Text("\(store.cursor + 1) / \(store.deck.count)")
+            .font(.footnote.weight(.semibold))
+            .monospacedDigit()
+            .foregroundStyle(.white.opacity(0.75))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .glassEffect(.regular.tint(.black.opacity(0.28)), in: Capsule())
+            .padding(.bottom, 8)
     }
 
     private static func cardSize(in size: CGSize) -> CGSize {
-        let width = min(size.width * 0.66, 330)
-        return CGSize(width: width, height: min(width * 1.42, size.height * 0.82))
+        let width = min(size.width * 0.50, 240)
+        return CGSize(width: width, height: min(width * 1.28, size.height * 0.62))
     }
 
     private static func durationText(_ duration: TimeInterval) -> String {
