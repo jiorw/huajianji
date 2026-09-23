@@ -244,7 +244,7 @@ struct RootView: View {
                 Text(item.title)
                     .font(.system(size: 11, weight: .medium))
             }
-            .foregroundStyle(selected ? .white : .white.opacity(0.7))
+            .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white.opacity(0.7))
             .frame(width: Self.dockItemWidth, height: Self.dockHeight)
             .contentShape(Rectangle())
         }
