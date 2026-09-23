@@ -1,0 +1,69 @@
+name: 构建必起闹钟无签名 IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'BiqiAlarm/**'
+      - '.github/workflows/build-biqialarm-ipa.yml'
+
+jobs:
+  build:
+    # macos-26 镜像默认 Xcode 26.6（iOS 26.5 SDK），Liquid Glass 和 AlarmKit 全都有。
+    # 想换成 iOS 27 SDK 就把 runs-on 改成 xcode-27（GitHub 的 preview 镜像，排队可能慢）。
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 确认工具链版本
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -showsdks | grep -q 'iphoneos2[6-9]' || {
+            echo "!! 需要 Xcode 26 或更新（iOS 26 SDK 才有 Liquid Glass / AlarmKit）"; exit 1; }
+
+      - name: 安装 XcodeGen
+        run: brew install xcodegen
+
+      - name: 生成 Xcode 工程
+        working-directory: BiqiAlarm
+        run: xcodegen generate
+
+      - name: 编译 Release（不签名）
+        working-directory: BiqiAlarm
+        run: |
+          set -euo pipefail
+          # -target 模式下不能用 -derivedDataPath，直接指定 SYMROOT
+          xcodebuild build \
+            -project BiqiAlarm.xcodeproj \
+            -target BiqiAlarm \
+            -configuration Release \
+            -sdk iphoneos \
+            SYMROOT="$(pwd)/build_out" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=
+
+      - name: 打包成 IPA
+        working-directory: BiqiAlarm
+        run: |
+          set -euo pipefail
+          VERSION=$(plutil -extract CFBundleShortVersionString raw Support/Info.plist)
+          echo "版本号 $VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          APP=$(find build_out/Release-iphoneos -maxdepth 1 -name '*.app' | head -n 1)
+          test -n "$APP"
+          echo "检查铃声资源是否平铺进 bundle"
+          ls "$APP" | grep -c '\.wav$' || echo "!! 一个 wav 都没有"
+          rm -rf Payload && mkdir Payload
+          cp -R "$APP" Payload/
+          ditto -c -k --keepParent Payload "biqialarm-$VERSION.ipa"
+          ls -lh "biqialarm-$VERSION.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: biqialarm-${{ env.VERSION }}
+          path: BiqiAlarm/biqialarm-${{ env.VERSION }}.ipa
+          if-no-files-found: error
