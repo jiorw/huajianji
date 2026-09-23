@@ -88,8 +88,8 @@ struct MediaImageView: View {
                     .aspectRatio(contentMode: contentMode)
             } else {
                 ProgressView()
-                    .controlSize(.large)
-                    .tint(.white.opacity(0.7))
+                    .controlSize(.medium)
+                    .tint(.white.opacity(0.28))
             }
         }
         .animation(.easeOut(duration: 0.22), value: shownID)
