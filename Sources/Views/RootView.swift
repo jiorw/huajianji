@@ -6,7 +6,6 @@ struct RootView: View {
     @StateObject private var palette = BackdropPalette()
     @StateObject private var meter = FrameMeter()
     @Environment(\.scenePhase) private var scenePhase
-    @Namespace private var glass
     @Namespace private var zoom
 
     @State private var showSettings = false
@@ -116,46 +115,23 @@ struct RootView: View {
     private var header: some View {
         HStack {
             if store.writable, store.tab != .stats, store.tab != .editing {
-                GlassEffectContainer(spacing: 10) {
-                    HStack(spacing: 10) {
-                        // 一整个胶囊：册名 + 剩余张数小圆徽
-                        HStack(spacing: 9) {
-                            Text(store.tab.title)
-                                .font(.system(size: 17, weight: .medium))
-                            Text("\(store.deckRemaining)")
-                                .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                                .foregroundStyle(.white)
-                                .frame(width: 26, height: 26)
-                                .background(.white.opacity(0.20), in: Circle())
-                                .contentTransition(.numericText(value: Double(store.deckRemaining)))
-                                .animation(.snappy, value: store.deckRemaining)
-                        }
+                // 一整个胶囊：册名 + 剩余张数小圆徽
+                HStack(spacing: 9) {
+                    Text(store.tab.title)
+                        .font(.system(size: 17, weight: .medium))
+                    Text("\(store.deckRemaining)")
+                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
                         .foregroundStyle(.white)
-                        .padding(.leading, 20)
-                        .padding(.trailing, 9)
-                        .frame(height: 44)
-                        .glassEffect(.regular, in: Capsule())
-
-                        Button {
-                            withAnimation(.spring(duration: 0.45, bounce: 0.22)) {
-                                store.mode = store.mode == .blindBox ? .onThisDay : .blindBox
-                            }
-                        } label: {
-                            Image(systemName: store.mode == .onThisDay ? "calendar.badge.clock" : "shuffle")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 44, height: 44)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .glassEffect(store.mode == .onThisDay
-                                     ? .regular.tint(.blue.opacity(0.45)).interactive()
-                                     : .regular.interactive(),
-                                     in: Capsule())
-                        .glassEffectID("mode", in: glass)
-                        .animation(.snappy, value: store.mode)
-                    }
+                        .frame(width: 26, height: 26)
+                        .background(.white.opacity(0.20), in: Circle())
+                        .contentTransition(.numericText(value: Double(store.deckRemaining)))
+                        .animation(.snappy, value: store.deckRemaining)
                 }
+                .foregroundStyle(.white)
+                .padding(.leading, 20)
+                .padding(.trailing, 9)
+                .frame(height: 44)
+                .glassEffect(.regular, in: Capsule())
             }
             Spacer()
         }
