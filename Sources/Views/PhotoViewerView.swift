@@ -193,10 +193,12 @@ struct PhotoViewerView: View {
     private var footer: some View {
         VStack(spacing: 10) {
             if let asset {
-                Text(TimeText.since(asset.creationDate))
+                Text(store.reviewTimeText(for: asset))
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
-                Text(TimeText.precise(asset.creationDate))
+                Text(store.timeFormat == .relative
+                     ? TimeText.precise(asset.creationDate)
+                     : TimeText.since(asset.creationDate))
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.55))
             }
