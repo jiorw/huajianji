@@ -1,12 +1,15 @@
 import SwiftUI
 import Photos
+import UIKit
 
-/// 全屏放大筛选：双击/捏合缩放，照片左右滑切换、上滑删除；视频上下滑切换
+/// 全屏放大筛选：双击/捏合缩放，照片左右滑切换、上滑删除；视频上下滑切换并自动播放
 struct PhotoViewerView: View {
     @ObservedObject var store: PhotoStore
     @Environment(\.dismiss) private var dismiss
 
     let startIndex: Int
+
+    @StateObject private var playback = FeedPlayback()
 
     @State private var index = 0
     @State private var drag: CGSize = .zero
@@ -15,6 +18,7 @@ struct PhotoViewerView: View {
     @State private var pan: CGSize = .zero
     @State private var lastPan: CGSize = .zero
     @State private var finished = false
+    @State private var showInfo = false
 
     private static let swipeThreshold: CGFloat = 96
 
@@ -28,16 +32,22 @@ struct PhotoViewerView: View {
                 Color.black.opacity(0.95).ignoresSafeArea()
 
                 if let asset {
-                    MediaImageView(asset: asset, targetSize: geo.size, contentMode: .fit)
-                        .scaleEffect(zoom)
-                        .offset(x: drag.width + pan.width,
-                                y: drag.height + pan.height)
-                        .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 46)))
-                        .gesture(dragGesture)
-                        .simultaneousGesture(pinchGesture)
-                        .onTapGesture(count: 2) { toggleZoom(in: geo.size) }
-                        .id(asset.localIdentifier)
-                        .animation(.spring(duration: 0.45, bounce: 0.24), value: index)
+                    if isVideo {
+                        PlayerUIView(player: playback.player)
+                            .offset(drag)
+                            .gesture(dragGesture)
+                            .id(asset.localIdentifier)
+                    } else {
+                        MediaImageView(asset: asset, targetSize: geo.size, contentMode: .fit)
+                            .scaleEffect(zoom)
+                            .offset(x: drag.width + pan.width,
+                                    y: drag.height + pan.height)
+                            .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 46)))
+                            .gesture(dragGesture)
+                            .simultaneousGesture(pinchGesture)
+                            .onTapGesture(count: 2) { toggleZoom() }
+                            .id(asset.localIdentifier)
+                    }
                 }
 
                 VStack(spacing: 0) {
@@ -47,8 +57,16 @@ struct PhotoViewerView: View {
                 }
             }
         }
-        .onAppear { index = startIndex }
+        .onAppear {
+            index = startIndex
+            reloadMedia()
+        }
+        .onChange(of: index) { _, _ in reloadMedia() }
+        .onDisappear { playback.stop() }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showInfo) {
+            if let asset { PhotoInfoSheet(asset: asset) }
+        }
         .sheet(isPresented: $finished) {
             BatchResultSheet(store: store) {
                 finished = false
@@ -59,21 +77,33 @@ struct PhotoViewerView: View {
         }
     }
 
-    // MARK: - 顶栏 / 底栏
+    private func reloadMedia() {
+        zoom = 1
+        lastZoom = 1
+        pan = .zero
+        lastPan = .zero
+        drag = .zero
+        guard let asset else { return }
+        if asset.mediaType == .video {
+            playback.load(asset)
+        } else {
+            playback.stop()
+        }
+    }
+
+    // MARK: - 顶栏
 
     private var header: some View {
-        HStack {
-            Button {
-                dismiss()
-            } label: {
+        HStack(spacing: 10) {
+            Button { dismiss() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 38, height: 38)
             }
             .buttonStyle(.glass)
 
-            Spacer()
+            Spacer(minLength: 4)
 
             VStack(spacing: 3) {
                 Text("\(min(index + 1, store.deck.count)) / \(store.deck.count)")
@@ -84,17 +114,58 @@ struct PhotoViewerView: View {
                     .foregroundStyle(store.queuedInBatch.isEmpty ? Color.white.opacity(0.55) : Color.red)
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 9)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
             .glassEffect(.regular, in: .rect(cornerRadius: 18))
 
-            Spacer()
+            Spacer(minLength: 4)
 
-            Color.clear.frame(width: 40, height: 40)
+            if isVideo {
+                Button { playback.toggleMute() } label: {
+                    Image(systemName: playback.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                }
+                .buttonStyle(.glass)
+            }
+
+            Button { showInfo = true } label: {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 38, height: 38)
+            }
+            .buttonStyle(.glass)
+
+            Button { favoriteTapped() } label: {
+                Image(systemName: favorited ? "heart.fill" : "heart")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(favorited ? Color.red : .white)
+                    .frame(width: 38, height: 38)
+                    .scaleEffect(favorited ? 1.12 : 1)
+                    .animation(.spring(duration: 0.35, bounce: 0.5), value: favorited)
+            }
+            .buttonStyle(.glass)
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 16)
         .padding(.top, 8)
+        .opacity(zoomed ? 0 : 1)
     }
+
+    private var favorited: Bool {
+        guard let asset else { return false }
+        return store.isFavorite(asset.localIdentifier)
+    }
+
+    private func favoriteTapped() {
+        guard let asset else { return }
+        let added = store.toggleFavorite(asset)
+        let generator = UIImpactFeedbackGenerator(style: added ? .medium : .light)
+        generator.impactOccurred()
+    }
+
+    // MARK: - 底栏
 
     private var footer: some View {
         VStack(spacing: 10) {
@@ -151,13 +222,13 @@ struct PhotoViewerView: View {
                 let down = projected.height > 460 || value.translation.height > Self.swipeThreshold * 1.4
 
                 if isVideo {
-                    if up { commit(delete: false, forward: true) }
+                    if up { commit(delete: false) }
                     else if down { stepBack() }
-                    else if right { commit(delete: true, forward: true) }
+                    else if right { commit(delete: true) }
                     else { settle() }
                 } else {
-                    if up { commit(delete: true, forward: true) }
-                    else if right { commit(delete: false, forward: true) }
+                    if up { commit(delete: true) }
+                    else if right { commit(delete: false) }
                     else if left { stepBack() }
                     else { settle() }
                 }
@@ -182,14 +253,10 @@ struct PhotoViewerView: View {
             }
     }
 
-    private func toggleZoom(in size: CGSize) {
+    private func toggleZoom() {
         withAnimation(.spring(duration: 0.45, bounce: 0.18)) {
-            if zoomed {
-                zoom = 1
-                pan = .zero
-            } else {
-                zoom = 2.6
-            }
+            zoom = zoomed ? 1 : 2.6
+            if zoomed { pan = .zero }
             lastZoom = zoom
             lastPan = pan
         }
@@ -205,12 +272,17 @@ struct PhotoViewerView: View {
         index -= 1
     }
 
-    private func commit(delete: Bool, forward: Bool) {
+    private func commit(delete: Bool) {
         guard let asset else { return }
-        let target: CGSize = delete
-            ? CGSize(width: drag.width, height: isVideo ? drag.height : -1400)
-            : CGSize(width: isVideo ? drag.width : 900, height: isVideo ? -1400 : drag.height)
+        // 照片：删除往上飞、下一张往右飞；视频反过来（上滑是下一个，右滑是删除）
+        let flyUp = delete != isVideo
+        let target: CGSize = flyUp
+            ? CGSize(width: drag.width, height: -1400)
+            : CGSize(width: 900, height: drag.height)
         withAnimation(.easeOut(duration: 0.22)) { drag = target }
+        if delete {
+            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(220))
             store.mark(delete ? .queued : .kept, asset: asset)
