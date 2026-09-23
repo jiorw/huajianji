@@ -89,7 +89,7 @@ struct EditorView: View {
                 filterStrip
 
                 HStack(spacing: 12) {
-                    PhotosPicker(selection: $pickerItems, matchingFilter: .images) {
+                    PhotosPicker(selection: $pickerItems) {
                         Label("换一张", systemImage: "arrow.left.arrow.right")
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 5)
@@ -121,7 +121,7 @@ struct EditorView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 30)
-                    PhotosPicker(selection: $pickerItems, matchingFilter: .images) {
+                    PhotosPicker(selection: $pickerItems) {
                         Label("选择照片", systemImage: "photo.badge.plus")
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
@@ -192,7 +192,10 @@ struct EditorView: View {
                     notice = nil
                 }
             } else {
-                await MainActor.run { isWorking = false }
+                await MainActor.run {
+                    isWorking = false
+                    notice = "这个不是能处理的图片，换一张"
+                }
             }
         }
     }
