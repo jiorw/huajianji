@@ -103,10 +103,11 @@ struct MissionPickerView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .foregroundStyle(.white)
-            .glassPanel(tint: contains(kind) ? Palette.accent.opacity(0.22) : Color.white.opacity(0.06),
-                        cornerRadius: 18)
+            .padding(16)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(GlassCardButton(
+            tint: contains(kind) ? Palette.accent.opacity(0.22) : Color.white.opacity(0.06),
+            cornerRadius: 18))
         .contextMenu {
             Button("试做一次", systemImage: "play") { previewKind = kind }
         }
