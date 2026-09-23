@@ -48,6 +48,7 @@ struct CleanupStats: Codable {
 
 enum RootTab: Int, CaseIterable, Identifiable {
     case photos
+    case screenshots
     case videos
     case stats
 
@@ -56,6 +57,7 @@ enum RootTab: Int, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .photos: "照片"
+        case .screenshots: "截图"
         case .videos: "视频"
         case .stats: "统计"
         }
@@ -64,6 +66,7 @@ enum RootTab: Int, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .photos: "photo.on.rectangle.angled"
+        case .screenshots: "crop.fill"
         case .videos: "play.rectangle.fill"
         case .stats: "chart.bar.xaxis"
         }
@@ -71,7 +74,7 @@ enum RootTab: Int, CaseIterable, Identifiable {
 
     var mediaType: PHAssetMediaType? {
         switch self {
-        case .photos: .image
+        case .photos, .screenshots: .image
         case .videos: .video
         case .stats: nil
         }
@@ -211,7 +214,9 @@ final class PhotoStore: NSObject, ObservableObject {
     private var undoStack: [String] = []
     private var batchMarked: [String] = []
     private var kindOf: [String: String] = [:]
-    private var tabReviewed = 0
+    /// 当前分类下还没筛过的资源在 fetchResult 里的下标，发牌时直接从这里取
+    private var candidates: [Int] = []
+    private var tabTotal = 0
     private var persistTask: Task<Void, Never>?
     private var registered = false
 
@@ -354,7 +359,7 @@ final class PhotoStore: NSObject, ObservableObject {
     private func refreshLibrary(redeal: Bool) {
         guard writable else { return }
         fetchResult = currentFetchResult()
-        recountTabReviewed()
+        rebuildCandidates()
         if redeal {
             deal()
         } else {
@@ -363,27 +368,18 @@ final class PhotoStore: NSObject, ObservableObject {
         refreshCounts()
     }
 
-    /// 只统计当前这个 tab（照片 / 视频）里已经筛过的数量
-    private func recountTabReviewed() {
-        guard let result = fetchResult else {
-            tabReviewed = 0
-            return
+    private func matchesTab(_ asset: PHAsset) -> Bool {
+        let isShot = asset.mediaSubtypes.contains(.photoScreenshot)
+        switch tab {
+        case .photos: asset.mediaType == .image && !isShot
+        case .screenshots: isShot
+        case .videos: asset.mediaType == .video
+        case .stats: true
         }
-        var count = 0
-        result.enumerateObjects { asset, _, _ in
-            if self.verdicts[asset.localIdentifier] != nil { count += 1 }
-        }
-        tabReviewed = count
     }
 
-    /// 从相册里随机发一批，数量最多 deckSize 张
-    func dealNewDeck() {
-        deal()
-    }
-
-    /// 这张能不能进本组：没筛过，且符合当前模式的日期条件
-    private func acceptable(_ asset: PHAsset) -> Bool {
-        guard verdicts[asset.localIdentifier] == nil else { return false }
+    private func eligible(_ asset: PHAsset) -> Bool {
+        guard verdicts[asset.localIdentifier] == nil, matchesTab(asset) else { return false }
         guard mode == .onThisDay else { return true }
         guard let date = asset.creationDate else { return false }
         let calendar = Calendar.current
@@ -392,34 +388,46 @@ final class PhotoStore: NSObject, ObservableObject {
         return now.month == then.month && now.day == then.day && (then.year ?? 0) < (now.year ?? 0)
     }
 
+    /// 一遍扫完当前分类的可选池，避免每次发牌都全库试探
+    private func rebuildCandidates() {
+        guard let result = fetchResult else {
+            candidates = []
+            tabTotal = 0
+            return
+        }
+        var matching = 0
+        var fresh: [Int] = []
+        result.enumerateObjects { asset, index, _ in
+            guard self.matchesTab(asset) else { return }
+            matching += 1
+            if self.verdicts[asset.localIdentifier] == nil { fresh.append(index) }
+        }
+        tabTotal = matching
+        if mode == .onThisDay {
+            fresh = fresh.filter { eligible(result.object(at: $0)) }
+        }
+        candidates = fresh
+    }
+
+    /// 从相册里随机发一批，数量最多 deckSize 张
+    func dealNewDeck() {
+        deal()
+    }
+
+    /// 从候选池里随机取一组，取走的从池子里摘掉，下一组不会重复
     private func deal() {
-        guard let result = fetchResult, result.count > 0 else {
+        guard let result = fetchResult, !candidates.isEmpty else {
             deck = []
             cursor = 0
             refreshCounts()
             return
         }
+        let wanted = min(currentBatchSize, candidates.count)
         var picked: [PHAsset] = []
-        var taken = Set<String>()
-        var attempts = 0
-        let ceiling = result.count
-        let wanted = min(currentBatchSize, ceiling)
-        while picked.count < wanted, attempts < wanted * 50 {
-            attempts += 1
-            let asset = result.object(at: Int.random(in: 0..<ceiling))
-            guard acceptable(asset), !taken.contains(asset.localIdentifier) else { continue }
-            taken.insert(asset.localIdentifier)
-            picked.append(asset)
-        }
-        // 库里剩下的不多了，随机试不出来就顺序补齐
-        if picked.count < wanted {
-            for index in 0..<ceiling {
-                if picked.count >= wanted { break }
-                let asset = result.object(at: index)
-                guard acceptable(asset), !taken.contains(asset.localIdentifier) else { continue }
-                taken.insert(asset.localIdentifier)
-                picked.append(asset)
-            }
+        picked.reserveCapacity(wanted)
+        for _ in 0..<wanted {
+            let slot = Int.random(in: 0..<candidates.count)
+            picked.append(result.object(at: candidates.remove(at: slot)))
         }
         deck = picked
         cursor = 0
@@ -466,11 +474,11 @@ final class PhotoStore: NSObject, ObservableObject {
             if let kind = kindOf.removeValue(forKey: id), let current = stats.reviewed[kind] {
                 stats.reviewed[kind] = max(0, current - 1)
             }
-            tabReviewed = max(0, tabReviewed - 1)
         }
         undoStack.removeAll()
         batchMarked = []
         writeToDisk()
+        rebuildCandidates()
         refreshCounts()
     }
 
@@ -481,12 +489,11 @@ final class PhotoStore: NSObject, ObservableObject {
             if let kind = kindOf.removeValue(forKey: id), let current = stats.reviewed[kind] {
                 stats.reviewed[kind] = max(0, current - 1)
             }
-            tabReviewed = max(0, tabReviewed - 1)
         }
         undoStack.removeAll()
         batchMarked = []
         writeToDisk()
-        refreshCounts()
+        rebuildCandidates()
         deal()
     }
 
@@ -513,7 +520,6 @@ final class PhotoStore: NSObject, ObservableObject {
         let kind = StatKind(asset: asset).rawValue
         kindOf[id] = kind
         stats.reviewed[kind, default: 0] += 1
-        tabReviewed += 1
         schedulePersist()
         refreshCounts()
     }
@@ -525,7 +531,6 @@ final class PhotoStore: NSObject, ObservableObject {
         if let kind = kindOf.removeValue(forKey: id), let current = stats.reviewed[kind] {
             stats.reviewed[kind] = max(0, current - 1)
         }
-        tabReviewed = max(0, tabReviewed - 1)
         if let position = deck.firstIndex(where: { $0.localIdentifier == id }) {
             cursor = position
         } else if let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject {
@@ -664,8 +669,8 @@ final class PhotoStore: NSObject, ObservableObject {
         queuedCount = queued
         deletedCount = deleted
         reviewedCount = verdicts.count
-        libraryCount = fetchResult?.count ?? 0
-        remainingCount = max(0, libraryCount - tabReviewed)
+        libraryCount = tabTotal
+        remainingCount = candidates.count
         canUndo = !undoStack.isEmpty
     }
 
