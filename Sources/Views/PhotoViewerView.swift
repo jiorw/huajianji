@@ -207,8 +207,9 @@ struct PhotoViewerView: View {
             }
         }
         .animation(.spring(duration: 0.35, bounce: 0.25), value: toolsVisible)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         .padding(.trailing, 16)
+        .padding(.bottom, 200)
         .opacity(zoomed ? 0 : 1)
         .allowsHitTesting(!zoomed)
     }
@@ -281,19 +282,10 @@ struct PhotoViewerView: View {
                 .onTapGesture { showInfo = true }
             }
             HStack {
-                if isVideo {
-                    Label("上滑 下一个", systemImage: "arrow.up")
-                    Spacer()
-                    Label("右滑 删除", systemImage: "trash")
-                } else if isLive {
-                    Label("长按 播放实况", systemImage: "livephoto")
-                    Spacer()
-                    Label("右滑 下一张 · 上滑 删除", systemImage: "arrow.up.right")
-                } else {
-                    Label("左滑 上一张", systemImage: "arrow.left")
-                    Spacer()
-                    Label("右滑 下一张 · 上滑 删除", systemImage: "arrow.up.right")
-                }
+                Label(isLive ? "长按 播放实况" : "左滑 上一张",
+                      systemImage: isLive ? "livephoto" : "arrow.left")
+                Spacer()
+                Label("右滑 下一张 · 上滑 删除 · 下滑 返回", systemImage: "arrow.up.arrow.down")
             }
             .font(.caption.weight(.medium))
             .foregroundStyle(.white.opacity(0.5))
@@ -329,17 +321,12 @@ struct PhotoViewerView: View {
                 let left = projected.width < -520 || value.translation.width < -Self.swipeThreshold * 1.4
                 let down = projected.height > 460 || value.translation.height > Self.swipeThreshold * 1.4
 
-                if isVideo {
-                    if up { commit(delete: false) }
-                    else if down { stepBack() }
-                    else if right { commit(delete: true) }
-                    else { settle() }
-                } else {
-                    if up { commit(delete: true) }
-                    else if right { commit(delete: false) }
-                    else if left { stepBack() }
-                    else { settle() }
-                }
+                // 照片和视频走同一套：左上一张 / 右下一张 / 上删除 / 下退回三卡首页
+                if up { commit(delete: true) }
+                else if right { commit(delete: false) }
+                else if left { stepBack() }
+                else if down { dismiss() }
+                else { settle() }
             }
     }
 
@@ -382,9 +369,8 @@ struct PhotoViewerView: View {
 
     private func commit(delete: Bool) {
         guard let asset else { return }
-        // 照片：删除往上飞、下一张往右飞；视频反过来（上滑是下一个，右滑是删除）
-        let flyUp = delete != isVideo
-        let target: CGSize = flyUp
+        // 删除往上飞，下一张往右飞
+        let target: CGSize = delete
             ? CGSize(width: drag.width, height: -1400)
             : CGSize(width: 900, height: drag.height)
         withAnimation(.easeOut(duration: 0.22)) { drag = target }
