@@ -143,7 +143,7 @@ struct SettingsView: View {
 
     private var hardnessCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "狠一点", note: "原版收会员费的，这里全开")
+            SectionHeader(title: "狠一点", note: "越狠越有效")
             Toggle("必起模式：响铃期间不许把音量压到最小", isOn: bind(\.unbeatable))
             Toggle("绕开静音拨片", isOn: bind(\.ignoreSilenceSwitch))
             Toggle("响铃时屏幕常亮", isOn: bind(\.keepScreenOnWhileRinging))
@@ -208,13 +208,17 @@ struct SettingsView: View {
         .glassPanel()
     }
 
+    /// 版本号跟着 bundle 走，省得改文案时忘了同步
+    private var appVersion: String {
+        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "1.0"
+    }
+
     private var aboutCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader(title: "关于")
-            Text("必起闹钟 1.0").font(.subheadline.weight(.semibold))
-            Text("功能按「使命闹钟」原版对齐：12 种起床使命、多使命连做、任务限时、贪睡限制、"
-                 + "音量渐强、自动收起、防删、快速闹钟、睡眠声音、起床报告。"
-                 + "原版的会员墙和广告位全部去掉，全部功能默认开放；不联网，数据只留在手机里。")
+            Text("必起闹钟 \(appVersion)").font(.subheadline.weight(.semibold))
+            Text("12 种起床使命、多使命连做、任务限时、贪睡限制、音量渐强、自动收起、防删、"
+                 + "快速闹钟、睡眠声音、起床报告。不联网，闹钟设置和起床记录只存在这台手机上。")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.68))
             Divider().overlay(.white.opacity(0.1))
