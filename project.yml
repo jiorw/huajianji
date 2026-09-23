@@ -1,0 +1,35 @@
+name: ZhaoHuaXiShi
+options:
+  bundleIdPrefix: com.local
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    # Swift 5 语言模式：PhotoKit 的回调式 API 在 Swift 6 严格并发下会报一堆错
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    ARCHS: "arm64"
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+    # 默认不签名：产物交给手机端自签工具处理
+    CODE_SIGN_STYLE: "Manual"
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGN_IDENTITY: ""
+
+targets:
+  ZhaoHuaXiShi:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+      - Assets.xcassets
+    settings:
+      base:
+        PRODUCT_NAME: ZhaoHuaXiShi
+        PRODUCT_BUNDLE_IDENTIFIER: com.local.zhaohuaxishi
+        INFOPLIST_FILE: Support/Info.plist
+        GENERATE_INFOPLIST_FILE: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
