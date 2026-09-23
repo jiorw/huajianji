@@ -34,6 +34,7 @@ struct PhotoViewerView: View {
     private static let swipeThreshold: CGFloat = 96
 
     private var asset: PHAsset? { store.deck.indices.contains(index) ? store.deck[index] : nil }
+    private var nextAsset: PHAsset? { store.deck.indices.contains(index + 1) ? store.deck[index + 1] : nil }
     private var currentID: String { asset?.localIdentifier ?? "" }
     private var isVideo: Bool { asset?.mediaType == .video }
     private var isLive: Bool { asset?.mediaSubtypes.contains(.photoLive) ?? false }
@@ -54,9 +55,8 @@ struct PhotoViewerView: View {
                     }
                     .animation(.easeOut(duration: 0.26), value: currentID)
                     .task(id: currentID) {
-                        // 提前把下一张按同样的缓存键拉好，翻过去就当帧出图，不闪空白
-                        let next = index + 1 < store.deck.count ? store.deck[index + 1] : nil
-                        if let next {
+                        // 提前把下一张按同样的缓存键拉好，垫底那层才能当帧出图
+                        if let next = nextAsset {
                             MediaCache.prefetch([next], size: geo.size, mode: .fit, scale: 3)
                         }
                     }
@@ -127,24 +127,29 @@ struct PhotoViewerView: View {
 
     @ViewBuilder
     private func mediaLayer(size: CGSize) -> some View {
-        if let asset {
-            if isVideo {
-                PlayerUIView(player: playback.player)
-                    .offset(drag)
-            } else if isLive {
-                LivePhotoView(asset: asset, playing: livePlaying)
-                    .offset(drag)
-                    .onLongPressGesture(minimumDuration: 0.25, pressing: { pressing in
-                        livePlaying = pressing
-                    }, perform: {})
-            } else {
-                MediaImageView(asset: asset, targetSize: size, contentMode: .fit)
-                    .id(asset.localIdentifier)
-                    .transition(.asymmetric(insertion: .opacity, removal: .identity))
-                    .scaleEffect(zoom)
-                    .offset(x: drag.width + pan.width, y: drag.height + pan.height)
-                    .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 46)))
-                    .simultaneousGesture(pinchGesture)
+        ZStack {
+            // 垫一层下一张：前一张飞走时露出来的是它，而不是黑底
+            if let next = nextAsset, !isVideo {
+                MediaImageView(asset: next, targetSize: size, contentMode: .fit)
+            }
+
+            if let asset {
+                if isVideo {
+                    PlayerUIView(player: playback.player)
+                        .offset(drag)
+                } else if isLive {
+                    LivePhotoView(asset: asset, playing: livePlaying)
+                        .offset(drag)
+                        .onLongPressGesture(minimumDuration: 0.25, pressing: { pressing in
+                            livePlaying = pressing
+                        }, perform: {})
+                } else {
+                    MediaImageView(asset: asset, targetSize: size, contentMode: .fit)
+                        .scaleEffect(zoom)
+                        .offset(x: drag.width + pan.width, y: drag.height + pan.height)
+                        .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 46)))
+                        .simultaneousGesture(pinchGesture)
+                }
             }
         }
     }
