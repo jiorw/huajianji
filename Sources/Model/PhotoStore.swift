@@ -58,11 +58,11 @@ enum RootTab: Int, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .photos: "照片"
-        case .screenshots: "截图"
-        case .editing: "编辑"
-        case .videos: "视频"
-        case .stats: "统计"
+        case .photos: "花间册"
+        case .screenshots: "碎影集"
+        case .editing: "花影染"
+        case .videos: "流光卷"
+        case .stats: "岁华簿"
         }
     }
 
