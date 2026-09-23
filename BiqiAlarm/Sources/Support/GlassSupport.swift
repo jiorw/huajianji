@@ -88,26 +88,7 @@ extension View {
     }
 }
 
-// MARK: - 玻璃卡片 / 玻璃条
-
-extension View {
-    /// 标准玻璃面板：放进 ScrollView / VStack 里当卡片用
-    func glassPanel(tint: Color? = nil, cornerRadius: CGFloat = 26) -> some View {
-        self
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(.regular.tint(tint),
-                         in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-    }
-
-    func glassChip(tint: Color? = nil) -> some View {
-        self
-            .font(.footnote.weight(.semibold))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .glassEffect(.regular.tint(tint), in: Capsule())
-    }
-}
+// MARK: - 玻璃条
 
 /// 一组按钮/入口做成会互相融合的玻璃，必须包在容器里
 struct GlassBar<Content: View>: View {
