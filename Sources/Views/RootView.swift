@@ -21,18 +21,6 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            BackdropView(asset: store.current)
-                .ignoresSafeArea()
-
-            LinearGradient(
-                colors: [palette.color, palette.color.opacity(0.72), Color.black.opacity(0.86)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
-            .animation(.easeInOut(duration: 0.55), value: palette.color)
-
             VStack(spacing: 0) {
                 header
                 if store.demoMode {
@@ -48,7 +36,21 @@ struct RootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 dock
             }
-            .padding(.bottom, 6)
+            .padding(.top, 6)
+            .padding(.bottom, 14)
+            .background {
+                ZStack {
+                    BackdropView(asset: store.current)
+                    LinearGradient(
+                        colors: [palette.color, palette.color.opacity(0.72), Color.black.opacity(0.86)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .allowsHitTesting(false)
+                }
+                .ignoresSafeArea()
+                .animation(.easeInOut(duration: 0.55), value: palette.color)
+            }
 
             if store.showFPS {
                 VStack {
