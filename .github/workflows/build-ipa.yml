@@ -23,6 +23,13 @@ jobs:
       - name: 安装 XcodeGen
         run: brew install xcodegen
 
+      - name: 写入构建号
+        run: |
+          set -euo pipefail
+          # 把 run 号写进 CFBundleVersion，App 里就能看到自己装的是哪一次构建
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GITHUB_RUN_NUMBER" Support/Info.plist
+          echo "CFBundleVersion -> $(plutil -extract CFBundleVersion raw Support/Info.plist)"
+
       - name: 生成 Xcode 工程
         run: xcodegen generate
 
