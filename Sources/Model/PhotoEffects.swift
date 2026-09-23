@@ -5,7 +5,6 @@ import CoreImage.CIFilterBuiltins
 // MARK: - 系统内置照片效果
 
 enum SystemFilter: String, CaseIterable, Identifiable {
-    case original
     case instant
     case process
     case transfer
@@ -20,7 +19,6 @@ enum SystemFilter: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .original: "原图"
         case .instant: "瞬间"
         case .process: "处理"
         case .transfer: "转移"
@@ -33,19 +31,21 @@ enum SystemFilter: String, CaseIterable, Identifiable {
         }
     }
 
-    var ciName: String? {
+    func filtered(_ input: CIImage) -> CIImage {
+        let output: CIFilter?
         switch self {
-        case .original: nil
-        case .instant: "CIPhotoEffectInstant"
-        case .process: "CIPhotoEffectProcess"
-        case .transfer: "CIPhotoEffectTransfer"
-        case .chrome: "CIPhotoEffectChrome"
-        case .fade: "CIPhotoEffectFade"
-        case .tonal: "CIPhotoEffectTonal"
-        case .mono: "CIPhotoEffectMono"
-        case .noir: "CIPhotoEffectNoir"
-        case .silvertone: "CIPhotoEffectSilvertone"
+        case .instant: output = CIFilter.photoEffectInstant()
+        case .process: output = CIFilter.photoEffectProcess()
+        case .transfer: output = CIFilter.photoEffectTransfer()
+        case .chrome: output = CIFilter.photoEffectChrome()
+        case .fade: output = CIFilter.photoEffectFade()
+        case .tonal: output = CIFilter.photoEffectTonal()
+        case .mono: output = CIFilter.photoEffectMono()
+        case .noir: output = CIFilter.photoEffectNoir()
+        case .silvertone: output = CIFilter.photoEffectSilvertone()
         }
+        output?.inputImage = input
+        return output?.outputImage ?? input
     }
 }
 
@@ -69,33 +69,31 @@ enum ColorGrade: String, CaseIterable, Identifiable {
         }
     }
 
-    func apply(to input: CIImage) -> CIImage {
+    func filtered(_ input: CIImage) -> CIImage {
         switch self {
         case .tealOrange:
-            // 高光偏橙、暗部偏青：抬红压蓝，再补一点对比
+            // 高光偏橙、暗部偏青
             return matrix(input,
-                          r: (1.10, -0.05, -0.05, 0.00),
-                          g: (-0.03, 1.03, 0.00, 0.01),
-                          b: (-0.05, 0.02, 0.97, 0.02),
-                          controls: (contrast: 1.14, saturation: 1.06, brightness: 0))
+                          r: (1.14, -0.06, -0.06, 0.000),
+                          g: (-0.04, 1.05, 0.00, 0.010),
+                          b: (-0.06, 0.02, 0.95, 0.020),
+                          contrast: 1.16, saturation: 1.08, brightness: 0)
         case .fadedFilm:
-            // 掉色感来自抬黑 + 压对比 + 降饱和
+            // 掉色感 = 抬黑 + 压对比 + 降饱和
             return matrix(input,
-                          r: (0.90, 0, 0, 0.055),
-                          g: (0, 0.91, 0, 0.050),
-                          b: (0, 0, 0.93, 0.045),
-                          controls: (contrast: 0.90, saturation: 0.76, brightness: 0.01))
+                          r: (0.86, 0, 0, 0.070),
+                          g: (0, 0.87, 0, 0.062),
+                          b: (0, 0, 0.89, 0.055),
+                          contrast: 0.88, saturation: 0.70, brightness: 0.01)
         case .cineWarm:
             return matrix(input,
-                          r: (1.09, 0, 0, 0.010),
-                          g: (0, 1.01, 0, 0.005),
-                          b: (0, 0, 0.90, 0.000),
-                          controls: (contrast: 1.12, saturation: 0.92, brightness: 0))
+                          r: (1.12, 0, 0, 0.014),
+                          g: (0, 1.02, 0, 0.006),
+                          b: (0, 0, 0.86, 0.000),
+                          contrast: 1.14, saturation: 0.90, brightness: 0)
         case .contrastMono:
-            guard let mono = CIFilter(name: "CIPhotoEffectMono") else { return input }
-            mono.setValue(input, forKey: kCIInputImageKey)
-            guard let gray = mono.outputImage else { return input }
-            return tone(gray, contrast: 1.42, saturation: 0, brightness: -0.02)
+            let gray = SystemFilter.mono.filtered(input)
+            return controls(gray, contrast: 1.5, saturation: 0, brightness: -0.03)
         }
     }
 
@@ -103,27 +101,25 @@ enum ColorGrade: String, CaseIterable, Identifiable {
                         r: (CGFloat, CGFloat, CGFloat, CGFloat),
                         g: (CGFloat, CGFloat, CGFloat, CGFloat),
                         b: (CGFloat, CGFloat, CGFloat, CGFloat),
-                        controls: (contrast: Double, saturation: Double, brightness: Double)) -> CIImage {
-        guard let filter = CIFilter(name: "CIColorMatrix") else { return input }
-        filter.setValue(input, forKey: kCIInputImageKey)
-        filter.setValue(CIVector(x: r.0, y: r.1, z: r.2, w: r.3), forKey: "inputRVector")
-        filter.setValue(CIVector(x: g.0, y: g.1, z: g.2, w: g.3), forKey: "inputGVector")
-        filter.setValue(CIVector(x: b.0, y: b.1, z: b.2, w: b.3), forKey: "inputBVector")
-        filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
-        filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputBiasVector")
+                        contrast: Double, saturation: Double, brightness: Double) -> CIImage {
+        let filter = CIFilter.colorMatrix()
+        filter.inputImage = input
+        filter.inputRVector = CIVector(x: r.0, y: r.1, z: r.2, w: r.3)
+        filter.inputGVector = CIVector(x: g.0, y: g.1, z: g.2, w: g.3)
+        filter.inputBVector = CIVector(x: b.0, y: b.1, z: b.2, w: b.3)
+        filter.inputAVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+        filter.inputBiasVector = CIVector(x: 0, y: 0, z: 0, w: 1)
         guard let tinted = filter.outputImage else { return input }
-        return tone(tinted,
-                    contrast: controls.contrast,
-                    saturation: controls.saturation,
-                    brightness: controls.brightness)
+        return controls(tinted, contrast: contrast, saturation: saturation, brightness: brightness)
     }
 
-    private func tone(_ input: CIImage, contrast: Double, saturation: Double, brightness: Double) -> CIImage {
-        guard let filter = CIFilter(name: "CIColorControls") else { return input }
-        filter.setValue(input, forKey: kCIInputImageKey)
-        filter.setValue(contrast, forKey: kCIInputContrastKey)
-        filter.setValue(saturation, forKey: kCIInputSaturationKey)
-        filter.setValue(brightness, forKey: kCIInputBrightnessKey)
+    private func controls(_ input: CIImage, contrast: Double, saturation: Double,
+                          brightness: Double) -> CIImage {
+        let filter = CIFilter.colorControls()
+        filter.inputImage = input
+        filter.inputContrast = contrast
+        filter.inputSaturation = saturation
+        filter.inputBrightness = brightness
         return filter.outputImage ?? input
     }
 }
@@ -134,7 +130,6 @@ struct CubeLUT: Identifiable, Hashable {
     let name: String
     let dimension: Int
     let data: Data
-    /// 导入后存在沙盒里的路径，用来删除
     var fileURL: URL?
 
     var id: String { name }
@@ -179,58 +174,6 @@ enum CubeParser {
     }
 }
 
-// MARK: - 统一渲染入口
-
-enum PhotoEffectEngine {
-    private static let context = CIContext(options: [.workingColorSpace: NSNull()])
-
-    static func render(_ image: UIImage, choice: EditorChoice, maxEdge: CGFloat) -> UIImage {
-        guard choice != .original, let cg = image.cgImage else { return image }
-        var input = CIImage(cgImage: cg)
-        let longest = max(input.extent.width, input.extent.height)
-        if longest > maxEdge {
-            let factor = maxEdge / longest
-            input = input.transformed(by: CGAffineTransform(scaleX: factor, y: factor))
-        }
-
-        let output: CIImage
-        switch choice {
-        case .original:
-            return image
-        case .builtin(let filter):
-            guard let name = filter.ciName, let cube = CIFilter(name: name) else { return image }
-            cube.setValue(input, forKey: kCIInputImageKey)
-            guard let result = cube.outputImage else { return image }
-            output = result
-        case .grade(let grade):
-            output = grade.apply(to: input)
-        case .lut(let lut):
-            guard let result = apply(lut: lut, to: input) else { return image }
-            output = result
-        }
-
-        let rect = output.extent
-        guard let rendered = Self.context.createCGImage(output, from: rect) else { return image }
-        return UIImage(cgImage: rendered, scale: image.scale, orientation: image.imageOrientation)
-    }
-
-    private static func apply(lut: CubeLUT, to input: CIImage) -> CIImage? {
-        // .cube 基本都是 sRGB 编码，优先用带色彩空间的版本
-        if let filter = CIFilter(name: "CIColorCubeWithColorSpace") {
-            filter.setValue(lut.dimension, forKey: "inputCubeDimension")
-            filter.setValue(lut.data, forKey: "inputCubeData")
-            filter.setValue(CGColorSpace.sRGB as String, forKey: "inputColorSpace")
-            filter.setValue(input, forKey: kCIInputImageKey)
-            if let result = filter.outputImage { return result }
-        }
-        guard let fallback = CIFilter(name: "CIColorCube") else { return nil }
-        fallback.setValue(lut.dimension, forKey: "inputCubeDimension")
-        fallback.setValue(lut.data, forKey: "inputCubeData")
-        fallback.setValue(input, forKey: kCIInputImageKey)
-        return fallback.outputImage
-    }
-}
-
 // MARK: - 选择项
 
 enum EditorChoice: Identifiable, Hashable {
@@ -257,11 +200,88 @@ enum EditorChoice: Identifiable, Hashable {
         }
     }
 
+    var isOriginal: Bool {
+        if case .original = self { return true }
+        return false
+    }
+
     static func all(luts: [CubeLUT]) -> [EditorChoice] {
         [.original]
-            + SystemFilter.allCases.dropFirst().map { EditorChoice.builtin($0) }
+            + SystemFilter.allCases.map { EditorChoice.builtin($0) }
             + ColorGrade.allCases.map { EditorChoice.grade($0) }
             + luts.map { EditorChoice.lut($0) }
+    }
+}
+
+// MARK: - 渲染
+
+enum PhotoEffectEngine {
+    private static let context = CIContext(options: [.workingColorSpace: NSNull()])
+
+    /// strength 0 = 原图，1 = 全效果
+    static func render(_ image: UIImage, choice: EditorChoice, strength: Double,
+                       maxEdge: CGFloat) -> UIImage {
+        guard !choice.isOriginal, let cg = image.cgImage else { return image }
+
+        var input = CIImage(cgImage: cg)
+        let longest = max(input.extent.width, input.extent.height)
+        if longest > maxEdge {
+            let factor = maxEdge / longest
+            input = input.transformed(by: CGAffineTransform(scaleX: factor, y: factor))
+        }
+        let extent = input.extent
+
+        let effect: CIImage
+        switch choice {
+        case .original:
+            return image
+        case .builtin(let filter):
+            effect = filter.filtered(input)
+        case .grade(let grade):
+            effect = grade.filtered(input)
+        case .lut(let lut):
+            guard let result = apply(lut: lut, to: input) else { return image }
+            effect = result
+        }
+
+        let blended = mix(effect: effect, base: input, strength: strength).cropped(to: extent)
+        guard let rendered = Self.context.createCGImage(blended, from: blended.extent) else {
+            return image
+        }
+        return UIImage(cgImage: rendered, scale: image.scale, orientation: image.imageOrientation)
+    }
+
+    /// 用一张均匀 alpha 的遮罩把效果和原图按比例混合
+    private static func mix(effect: CIImage, base: CIImage, strength: Double) -> CIImage {
+        let clamped = min(max(strength, 0), 1)
+        guard clamped < 0.999 else { return effect }
+        guard clamped > 0.001 else { return base }
+
+        let generator = CIFilter.constantColorGenerator()
+        generator.color = CIColor(red: 1, green: 1, blue: 1, alpha: clamped)
+        guard let mask = generator.outputImage?.cropped(to: base.extent),
+              let blend = CIFilter.blendWithAlphaMask().outputImage else { return effect }
+        _ = blend
+        let filter = CIFilter.blendWithAlphaMask()
+        filter.inputImage = effect
+        filter.maskImage = mask
+        filter.backgroundImage = base
+        return filter.outputImage ?? effect
+    }
+
+    private static func apply(lut: CubeLUT, to input: CIImage) -> CIImage? {
+        let withSpace = CIFilter.colorCubeWithColorSpace()
+        withSpace.inputCubeDimension = Int32(lut.dimension)
+        withSpace.inputCubeData = lut.data
+        withSpace.inputColorSpace = CGColorSpace(name: CGColorSpace.sRGB)
+        withSpace.inputImage = input
+        if let result = withSpace.outputImage { return result }
+
+        let fallback = CIFilter.colorCube()
+        fallback.inputCubeDimension = Int32(lut.dimension)
+        fallback.inputCubeData = lut.data
+        fallback.inputImage = input
+        return fallback.outputImage
     }
 }
 
@@ -288,24 +308,20 @@ final class LUTStore: ObservableObject {
             .sorted { $0.name < $1.name }
     }
 
-    /// 返回 nil 表示成功，否则是错误说明
+    /// 返回 nil 表示成功
     @discardableResult
     func importCube(from url: URL) -> String? {
         let secured = url.startAccessingSecurityScopedResource()
         defer { if secured { url.stopAccessingSecurityScopedResource() } }
         guard let lut = CubeParser.parse(url: url) else {
-            return "这个 .cube 读不了：格式不对或数据条数跟 LUT_3D_SIZE 对不上"
+            return "这个 .cube 读不了：格式不对，或数据条数跟 LUT_3D_SIZE 对不上"
         }
         let target = Self.folder.appendingPathComponent(safeName(lut.name) + ".cube")
+        try? FileManager.default.removeItem(at: target)
         do {
             try FileManager.default.copyItem(at: url, to: target)
         } catch {
-            if FileManager.default.fileExists(atPath: target.path) {
-                try? FileManager.default.removeItem(at: target)
-                try? FileManager.default.copyItem(at: url, to: target)
-            } else {
-                return "拷贝失败：\(error.localizedDescription)"
-            }
+            return "拷贝失败：\(error.localizedDescription)"
         }
         reload()
         return nil
