@@ -2,7 +2,7 @@ import SwiftUI
 import Photos
 import UIKit
 
-/// 全屏放大筛选：双击/捏合缩放，照片左右滑切换、上滑删除；视频上下滑切换并自动播放
+/// 全屏放大筛选：双击/捏合缩放；左上一张、右下一张、上滑删除、下滑退出（照片视频同一套）
 struct PhotoViewerView: View {
     @ObservedObject var store: PhotoStore
     @Environment(\.dismiss) private var dismiss
