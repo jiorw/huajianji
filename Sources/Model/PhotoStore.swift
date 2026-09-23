@@ -92,8 +92,25 @@ final class PhotoStore: NSObject, ObservableObject {
 
     static let deckSize = 20
 
-    @Published private(set) var authorization: PHAuthorizationStatus = .notDetermined
-    @Published private(set) var deck: [PHAsset] = []
+    @Published var photoBatchSize: Int {
+        didSet {
+            guard oldValue != photoBatchSize else { return }
+            defaults.set(photoBatchSize, forKey: Keys.photoBatch)
+            if tab != .videos { deal() }
+        }
+    }
+
+    @Published var videoBatchSize: Int {
+        didSet {
+            guard oldValue != videoBatchSize else { return }
+            defaults.set(videoBatchSize, forKey: Keys.videoBatch)
+            if tab == .videos { deal() }
+        }
+    }
+
+    var currentBatchSize: Int { tab == .videos ? videoBatchSize : photoBatchSize }
+
+    @Published private(set) var authorization: PHAuthorizationStatus = .notDetermined    @Published private(set) var deck: [PHAsset] = []
     @Published private(set) var cursor: Int = 0
     @Published private(set) var reviewedCount = 0
     @Published private(set) var queuedCount = 0
@@ -123,6 +140,8 @@ final class PhotoStore: NSObject, ObservableObject {
     private enum Keys {
         static let verdicts = "zhaohuaxishi.verdicts.v1"
         static let stats = "zhaohuaxishi.stats.v1"
+        static let photoBatch = "zhaohuaxishi.batch.photo"
+        static let videoBatch = "zhaohuaxishi.batch.video"
     }
 
     private let defaults = UserDefaults.standard
@@ -160,6 +179,8 @@ final class PhotoStore: NSObject, ObservableObject {
     }
 
     override init() {
+        photoBatchSize = UserDefaults.standard.object(forKey: Keys.photoBatch) as? Int ?? Self.deckSize
+        videoBatchSize = UserDefaults.standard.object(forKey: Keys.videoBatch) as? Int ?? Self.deckSize
         super.init()
         if let data = defaults.data(forKey: Keys.verdicts),
            let saved = try? JSONDecoder().decode([String: Verdict].self, from: data) {
@@ -275,7 +296,8 @@ final class PhotoStore: NSObject, ObservableObject {
         var taken = Set<String>()
         var attempts = 0
         let ceiling = result.count
-        while picked.count < Self.deckSize, attempts < Self.deckSize * 50 {
+        let wanted = min(currentBatchSize, ceiling)
+        while picked.count < wanted, attempts < wanted * 50 {
             attempts += 1
             let asset = result.object(at: Int.random(in: 0..<ceiling))
             let id = asset.localIdentifier
@@ -284,9 +306,9 @@ final class PhotoStore: NSObject, ObservableObject {
             picked.append(asset)
         }
         // 库里剩下的不多了，随机试不出来就顺序补齐
-        if picked.count < Self.deckSize {
+        if picked.count < wanted {
             for index in 0..<ceiling {
-                if picked.count >= Self.deckSize { break }
+                if picked.count >= wanted { break }
                 let asset = result.object(at: index)
                 let id = asset.localIdentifier
                 guard verdicts[id] == nil, !taken.contains(id) else { continue }
