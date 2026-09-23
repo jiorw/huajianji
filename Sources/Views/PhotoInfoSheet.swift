@@ -123,11 +123,12 @@ struct PhotoInfoSheet: View {
                     center: location.coordinate,
                     span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)))) {
                     Marker(place.isEmpty ? "拍摄地" : place,
+                           systemImage: "mappin.circle.fill",
                            coordinate: location.coordinate, tint: .green)
                 }
-                .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
                 .allowsDragging(false)
                 .allowsZooming(false)
+                .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
                 .frame(height: 190)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
                 .overlay(RoundedRectangle(cornerRadius: 18)
@@ -161,7 +162,7 @@ struct PhotoInfoSheet: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: .capsule)
+        .glassEffect(.regular.interactive(), in: Capsule())
         .frame(maxWidth: .infinity)
     }
 
