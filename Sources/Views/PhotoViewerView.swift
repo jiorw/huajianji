@@ -33,6 +33,7 @@ struct PhotoViewerView: View {
     private static let swipeThreshold: CGFloat = 96
 
     private var asset: PHAsset? { store.deck.indices.contains(index) ? store.deck[index] : nil }
+    private var currentID: String { asset?.localIdentifier ?? "" }
     private var isVideo: Bool { asset?.mediaType == .video }
     private var isLive: Bool { asset?.mediaSubtypes.contains(.photoLive) ?? false }
     private var zoomed: Bool { zoom > 1.02 }
@@ -49,6 +50,14 @@ struct PhotoViewerView: View {
                     .onTapGesture(count: 2) { doubleTapped() }
                     .onTapGesture {
                         withAnimation(.easeOut(duration: 0.2)) { toolsVisible.toggle() }
+                    }
+                    .animation(.easeOut(duration: 0.26), value: currentID)
+                    .task(id: currentID) {
+                        // 提前把下一张按同样的缓存键拉好，翻过去就当帧出图，不闪空白
+                        let next = index + 1 < store.deck.count ? store.deck[index + 1] : nil
+                        if let next {
+                            MediaCache.prefetch([next], size: geo.size, mode: .fit, scale: 3)
+                        }
                     }
 
                 VStack(spacing: 0) {
@@ -115,6 +124,8 @@ struct PhotoViewerView: View {
                     }, perform: {})
             } else {
                 MediaImageView(asset: asset, targetSize: size, contentMode: .fit)
+                    .id(asset.localIdentifier)
+                    .transition(.asymmetric(insertion: .opacity, removal: .identity))
                     .scaleEffect(zoom)
                     .offset(x: drag.width + pan.width, y: drag.height + pan.height)
                     .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 46)))
