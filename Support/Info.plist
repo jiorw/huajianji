@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>zh_CN</string>
 	<key>CFBundleDisplayName</key>
-	<string>朝花夕拾</string>
+	<string>花间集</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -23,7 +23,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>朝花夕拾需要读取相册才能随机抽取照片和视频。下滑只是放进入待删队列，只有你在统计页点「立即删除」才会真的删除；所有记录都留在本机，不会上传。</string>
+	<string>花间集需要读取相册才能随机抽取照片和视频。下滑只是放进入待删队列，只有你在统计页点「立即删除」才会真的删除；所有记录都留在本机，不会上传。</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
