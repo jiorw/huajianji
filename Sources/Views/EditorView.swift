@@ -8,6 +8,7 @@ struct EditorView: View {
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var source: UIImage?
     @State private var preview: UIImage?
+    @State private var renderID = 0
     @State private var choice: EditorChoice = .original
     @State private var strength: Double = 1
     @State private var isWorking = false
@@ -124,23 +125,26 @@ struct EditorView: View {
     @ViewBuilder
     private func previewArea(_ source: UIImage) -> some View {
         ZStack {
-            if isWorking {
-                ProgressView().tint(.white)
-            } else if let preview {
-                Image(uiImage: preview)
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                Image(uiImage: source)
-                    .resizable()
-                    .scaledToFit()
-            }
+            // 渲染期间继续显示上一张，靠 renderID 换身份做淡入淡出，而不是插一个转圈把画面顶掉
+            Image(uiImage: preview ?? source)
+                .resizable()
+                .scaledToFit()
+                .id(renderID)
+                .transition(.opacity)
         }
+        .animation(.easeInOut(duration: 0.24), value: renderID)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .overlay(RoundedRectangle(cornerRadius: 22)
             .strokeBorder(.white.opacity(0.14), lineWidth: 1))
-        .animation(.easeOut(duration: 0.18), value: choice)
+        .overlay(alignment: .topTrailing) {
+            if isWorking {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(.white.opacity(0.55))
+                    .padding(12)
+            }
+        }
         .overlay(alignment: .topLeading) {
             if !choice.isOriginal {
                 Text("\(choice.title) · \(Int((strength * 100).rounded()))%")
@@ -171,6 +175,7 @@ struct EditorView: View {
         guard let source else { preview = nil; return }
         guard !choice.isOriginal else {
             preview = source
+            renderID += 1
             return
         }
         isWorking = true
@@ -180,6 +185,7 @@ struct EditorView: View {
             let result = PhotoEffectEngine.render(source, choice: picked, strength: level, maxEdge: 1400)
             await MainActor.run {
                 preview = result
+                renderID += 1
                 isWorking = false
             }
         }
@@ -192,6 +198,7 @@ struct EditorView: View {
                let image = UIImage(data: data) {
                 source = image
                 preview = image
+                renderID += 1
                 choice = .original
                 notice = nil
             } else {
