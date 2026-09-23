@@ -18,8 +18,7 @@ struct OpenMissionIntent: LiveActivityIntent {
     static var description = IntentDescription("打开必起，做完起床使命才能关掉闹钟")
     static var openAppWhenRun: Bool = true
 
-    @Parameter(name: "闹钟ID")
-    var alarmID: String
+    @Parameter var alarmID: String
 
     init(alarmID: String) {
         self.alarmID = alarmID
