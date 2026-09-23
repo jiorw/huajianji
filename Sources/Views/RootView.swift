@@ -34,6 +34,15 @@ struct RootView: View {
 
             VStack(spacing: 0) {
                 header
+                if store.demoMode {
+                    Text("演示模式 · 确认删除也不会动相册里的文件")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .glassEffect(.regular.tint(.orange.opacity(0.55)), in: .rect(cornerRadius: 12))
+                        .padding(.top, 8)
+                }
                 main
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .animation(.spring(duration: 0.45, bounce: 0.2), value: store.tab)
@@ -100,6 +109,25 @@ struct RootView: View {
                             .glassEffectID("remaining", in: glass)
                             .contentTransition(.numericText(value: Double(store.deckRemaining)))
                             .animation(.snappy, value: store.deckRemaining)
+
+                        Button {
+                            withAnimation(.spring(duration: 0.45, bounce: 0.22)) {
+                                store.mode = store.mode == .blindBox ? .onThisDay : .blindBox
+                            }
+                        } label: {
+                            Image(systemName: store.mode == .onThisDay ? "calendar.badge.clock" : "shuffle")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 40, height: 40)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .glassEffect(store.mode == .onThisDay
+                                     ? .regular.tint(.blue.opacity(0.45)).interactive()
+                                     : .regular.interactive(),
+                                     in: .rect(cornerRadius: 20))
+                        .glassEffectID("mode", in: glass)
+                        .animation(.snappy, value: store.mode)
                     }
                 }
             }
