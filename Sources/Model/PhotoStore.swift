@@ -658,7 +658,7 @@ final class PhotoStore: NSObject, ObservableObject {
         let payload = BackupPayload(verdicts: verdicts, stats: stats, favorites: Array(favoriteIDs))
         guard let data = try? JSONEncoder().encode(payload) else { return nil }
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("朝花夕拾记录-\(Self.stamp()).json")
+            .appendingPathComponent("花间集记录-\(Self.stamp()).json")
         do {
             try data.write(to: url, options: .atomic)
             return url
@@ -673,7 +673,7 @@ final class PhotoStore: NSObject, ObservableObject {
         defer { if secured { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url),
               let payload = try? JSONDecoder().decode(BackupPayload.self, from: data) else {
-            errorMessage = "这个文件不是朝花夕拾导出的记录"
+            errorMessage = "这个文件不是花间集导出的记录"
             return
         }
         verdicts = payload.verdicts
