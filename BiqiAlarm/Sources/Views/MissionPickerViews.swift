@@ -23,7 +23,7 @@ struct MissionPickerView: View {
                 GlassBackdrop(using: Palette.night) { Color.clear }
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        Text("挑一个或几个，按顺序做完才让关。原版里多种使命连做要开会员，这里不用。")
+                        Text("挑一个或几个，按顺序做完才让关。")
                             .font(.footnote)
                             .foregroundStyle(.white.opacity(0.7))
                             .glassPanel(tint: Color.white.opacity(0.06))
