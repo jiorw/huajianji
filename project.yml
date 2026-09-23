@@ -1,4 +1,4 @@
-name: ZhaoHuaXiShi
+name: HuajianJi
 options:
   bundleIdPrefix: com.local
   deploymentTarget:
@@ -20,7 +20,7 @@ settings:
     CODE_SIGN_IDENTITY: ""
 
 targets:
-  ZhaoHuaXiShi:
+  HuajianJi:
     type: application
     platform: iOS
     sources:
@@ -28,8 +28,8 @@ targets:
       - Assets.xcassets
     settings:
       base:
-        PRODUCT_NAME: ZhaoHuaXiShi
-        PRODUCT_BUNDLE_IDENTIFIER: com.local.zhaohuaxishi
+        PRODUCT_NAME: HuajianJi
+        PRODUCT_BUNDLE_IDENTIFIER: com.local.huajianji
         INFOPLIST_FILE: Support/Info.plist
         GENERATE_INFOPLIST_FILE: "NO"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
