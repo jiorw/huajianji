@@ -8,7 +8,6 @@ struct RootView: View {
     @Namespace private var glass
     @Namespace private var zoom
 
-    @State private var showAlbums = false
     @State private var showSettings = false
     @State private var viewer: ViewerRequest?
 
@@ -58,11 +57,10 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { store.flush() }
         }
-        .sheet(isPresented: $showAlbums) {
-            AlbumPickerSheet(store: store)
-        }
         .sheet(isPresented: $showSettings) {
             SettingsView(store: store)
+                .presentationBackground(.black)
+                .presentationDragIndicator(.hidden)
         }
         .fullScreenCover(item: $viewer) { request in
             PhotoViewerView(store: store, startIndex: request.index)
@@ -85,21 +83,12 @@ struct RootView: View {
             if store.writable, store.tab != .stats, store.tab != .editing {
                 GlassEffectContainer(spacing: 12) {
                     HStack(spacing: 10) {
-                        Button {
-                            showAlbums = true
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 11, weight: .bold))
-                                Text(store.albumTitle)
-                                    .font(.system(size: 17, weight: .medium))
-                            }
+                        Text(store.tab.title)
+                            .font(.system(size: 17, weight: .medium))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 18)
                             .frame(height: 40)
-                            .contentShape(Capsule())
-                        }
-                        .buttonStyle(.glass)
+                            .glassEffect(.regular, in: .rect(cornerRadius: 20))
 
                         Text("\(store.deckRemaining)")
                             .font(.system(size: 14, weight: .semibold).monospacedDigit())
