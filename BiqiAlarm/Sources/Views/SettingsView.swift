@@ -199,10 +199,9 @@ struct SettingsView: View {
                         }
                         .foregroundStyle(.white)
                         .padding(10)
-                        .background(.white.opacity(0.07),
-                                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(GlassCardButton(tint: Color.white.opacity(0.07), cornerRadius: 14))
                 }
             }
         }
