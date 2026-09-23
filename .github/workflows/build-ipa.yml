@@ -44,15 +44,19 @@ jobs:
       - name: 打包成 IPA
         run: |
           set -euo pipefail
+          VERSION=$(plutil -extract CFBundleShortVersionString raw Support/Info.plist)
+          BUILD=$(plutil -extract CFBundleVersion raw Support/Info.plist)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "版本号 $VERSION ($BUILD)"
           APP=$(find build_out/Release-iphoneos -maxdepth 1 -name '*.app' | head -n 1)
           test -n "$APP"
           rm -rf Payload && mkdir Payload
           cp -R "$APP" Payload/
-          ditto -c -k --keepParent Payload ZhaoHuaXiShi-unsigned.ipa
-          ls -lh ZhaoHuaXiShi-unsigned.ipa
+          ditto -c -k --keepParent Payload "zhaohuaxishi-$VERSION.ipa"
+          ls -lh "zhaohuaxishi-$VERSION.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ZhaoHuaXiShi-unsigned-ipa
-          path: ZhaoHuaXiShi-unsigned.ipa
+          name: zhaohuaxishi-${{ env.VERSION }}
+          path: zhaohuaxishi-${{ env.VERSION }}.ipa
           if-no-files-found: error
