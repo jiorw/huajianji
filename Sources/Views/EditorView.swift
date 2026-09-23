@@ -9,6 +9,7 @@ struct EditorView: View {
     @State private var source: UIImage?
     @State private var preview: UIImage?
     @State private var choice: EditorChoice = .original
+    @State private var strength: Double = 1
     @State private var isWorking = false
     @State private var notice: String?
     @State private var failed = false
@@ -21,52 +22,63 @@ struct EditorView: View {
 
                 filterStrip
 
+                if !choice.isOriginal {
+                    HStack(spacing: 10) {
+                        Text("强度")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Slider(value: $strength, in: 0...1)
+                            .tint(.blue)
+                        Text("\(Int((strength * 100).rounded()))")
+                            .font(.footnote.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(.white)
+                            .frame(width: 30, alignment: .trailing)
+                    }
+                    .onChange(of: strength) { _, _ in refreshPreview() }
+                }
+
                 HStack(spacing: 12) {
                     PhotosPicker(selection: $pickerItems) {
-                        Label("换一张", systemImage: "arrow.left.arrow.right")
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 5)
+                        actionLabel("换一张", systemImage: "arrow.left.arrow.right")
                     }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
 
                     Button {
                         save(source)
                     } label: {
-                        Label("存为新照片", systemImage: "square.and.arrow.down")
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 5)
+                        actionLabel(choice.isOriginal ? "先选个风格" : "存为新照片",
+                                    systemImage: "square.and.arrow.down")
                     }
-                    .buttonStyle(.glassProminent)
-                    .disabled(isWorking || choice == .original)
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.tint(.blue.opacity(0.55)).interactive(),
+                                 in: .rect(cornerRadius: 22))
+                    .disabled(isWorking || choice.isOriginal)
                 }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
             } else {
                 Spacer()
-                VStack(spacing: 16) {
+                VStack(spacing: 22) {
                     Image(systemName: "camera.filters")
                         .font(.system(size: 46))
                         .foregroundStyle(.white.opacity(0.75))
                     Text("挑一张照片，套一个风格")
                         .font(.title3.weight(.semibold))
-                    Text("前 9 个是系统照片效果（照片 App 滤镜面板同一套引擎），中间 4 个是我自己推的调色，最后是你自己导入的 .cube LUT。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 30)
+                        .foregroundStyle(.white)
                     PhotosPicker(selection: $pickerItems) {
                         Label("选择照片", systemImage: "photo.badge.plus")
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 26)
+                            .padding(.vertical, 13)
+                            .contentShape(Capsule())
                     }
-                    .buttonStyle(.glassProminent)
-
-                    if !luts.luts.isEmpty {
-                        Text("已导入 \(luts.luts.count) 个 LUT")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.tint(.blue.opacity(0.42)).interactive(),
+                                 in: .rect(cornerRadius: 24))
                 }
+                .frame(maxWidth: .infinity)
                 Spacer()
             }
 
@@ -77,6 +89,7 @@ struct EditorView: View {
                     .multilineTextAlignment(.center)
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(16)
         .onChange(of: pickerItems) { _, items in
             guard let item = items.last else { return }
@@ -128,18 +141,43 @@ struct EditorView: View {
         .overlay(RoundedRectangle(cornerRadius: 22)
             .strokeBorder(.white.opacity(0.14), lineWidth: 1))
         .animation(.easeOut(duration: 0.18), value: choice)
+        .overlay(alignment: .topLeading) {
+            if !choice.isOriginal {
+                Text("\(choice.title) · \(Int((strength * 100).rounded()))%")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.black.opacity(0.5), in: Capsule())
+                    .padding(10)
+            }
+        }
+    }
+
+    private func actionLabel(_ text: String, systemImage: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+            Text(text)
+                .font(.subheadline.weight(.semibold))
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .contentShape(RoundedRectangle(cornerRadius: 22))
     }
 
     private func refreshPreview() {
         guard let source else { preview = nil; return }
-        guard choice != .original else {
+        guard choice.isOriginal else {
             preview = source
             return
         }
         isWorking = true
         let picked = choice
+        let level = strength
         Task.detached(priority: .userInitiated) {
-            let result = PhotoEffectEngine.render(source, choice: picked, maxEdge: 1400)
+            let result = PhotoEffectEngine.render(source, choice: picked, strength: level, maxEdge: 1400)
             await MainActor.run {
                 preview = result
                 isWorking = false
@@ -182,10 +220,10 @@ struct EditorView: View {
             choice = item
         } label: {
             Text(item.title)
-                .font(.caption.weight(.medium))
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
                 .background(choice == item ? Color.blue.opacity(0.6) : Color.black.opacity(0.4),
                             in: Capsule())
                 .overlay(Capsule().strokeBorder(.white.opacity(choice == item ? 0.4 : 0.1), lineWidth: 1))
@@ -205,11 +243,11 @@ struct EditorView: View {
         Button {
             showLUTImporter = true
         } label: {
-            Label("导入 .cube LUT", systemImage: "plus.rectangle.on.folder")
-                .font(.caption.weight(.medium))
+            Label("导入 LUT", systemImage: "plus.rectangle.on.folder")
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
                 .background(Color.white.opacity(0.1), in: Capsule())
         }
         .buttonStyle(.plain)
@@ -220,8 +258,9 @@ struct EditorView: View {
     private func save(_ image: UIImage) {
         isWorking = true
         let picked = choice
+        let level = strength
         Task.detached(priority: .userInitiated) {
-            let result = PhotoEffectEngine.render(image, choice: picked, maxEdge: 2400)
+            let result = PhotoEffectEngine.render(image, choice: picked, strength: level, maxEdge: 2400)
             do {
                 try await PHPhotoLibrary.shared().performChanges {
                     let request = PHAssetChangeRequest.creationRequestForAsset(from: result)
