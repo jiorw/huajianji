@@ -8,6 +8,7 @@ enum RootTab: Hashable {
 struct RootView: View {
     @Environment(AlarmStore.self) private var store
     @Environment(AppSettings.self) private var settings
+    @Namespace private var glass
     @State private var tab: RootTab = .alarms
     @State private var quickAlarm = false
     @State private var editing: AlarmItem?
@@ -18,7 +19,7 @@ struct RootView: View {
             GlassBackdrop(using: settings.backgroundGradient) { Color.clear }
 
             TabView(selection: $tab) {
-                AlarmListView(openEditor: openEditor, openQuick: { quickAlarm = true })
+                AlarmListView(openEditor: openEditor, openQuick: { quickAlarm = true }, glass: glass)
                     .tabItem { Label("闹钟", systemImage: "alarm.fill") }
                     .tag(RootTab.alarms)
 
@@ -37,9 +38,11 @@ struct RootView: View {
 
             if store.ringing != nil {
                 RingingView()
-                    .transition(.opacity)
+                    .transition(.asymmetric(insertion: .scale(scale: 0.88).combined(with: .opacity),
+                                            removal: .opacity))
             }
         }
+        .animation(GlassMotion.settle, value: store.ringing?.alarm.id)
         .tint(Palette.accent)
         .onAppear { UIApplication.shared.isIdleTimerDisabled = false }
         .onChange(of: scenePhase) { _, phase in
@@ -50,9 +53,13 @@ struct RootView: View {
         }
         .sheet(item: $editing) { alarm in
             AlarmEditorView(alarm: alarm)
+                .navigationTransition(.zoom(sourceID: alarm.id.uuidString, in: glass))
+                .presentationBackground(.clear)
         }
         .sheet(isPresented: $quickAlarm) {
             QuickAlarmView()
+                .navigationTransition(.zoom(sourceID: "quick", in: glass))
+                .presentationBackground(.clear)
         }
         .sheet(isPresented: deleteGateBinding) {
             DeleteGateView(cancel: { store.deleteGate = nil })
