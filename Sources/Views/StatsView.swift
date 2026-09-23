@@ -1,12 +1,15 @@
 import SwiftUI
+import Photos
 
 /// 使用统计：照片 / 截屏 / 视频 分类累计 + 腾出空间 + 重置
 struct StatsView: View {
     @ObservedObject var store: PhotoStore
     var onOpenSettings: () -> Void
+    var onOpenMemory: (MemoryGroup) -> Void
 
     @State private var confirmReset = false
     @State private var showFavorites = false
+    @State private var memories: [MemoryGroup] = []
 
     private let cardColor = Color(red: 0.105, green: 0.105, blue: 0.115)
 
@@ -28,6 +31,8 @@ struct StatsView: View {
                 }
                 .padding(.top, 8)
 
+                memoryCard
+
                 ForEach(StatKind.allCases, id: \.self) { kind in
                     categoryCard(kind)
                 }
@@ -47,6 +52,11 @@ struct StatsView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
+        .task {
+            memories = await Task.detached(priority: .userInitiated) {
+                PhotoStore.memoryGroups()
+            }.value
+        }
         .sheet(isPresented: $showFavorites) {
             FavoritesView(store: store)
         }
@@ -56,6 +66,58 @@ struct StatsView: View {
         } message: {
             Text("清空「看过 / 删过 / 腾出多少空间」的累计数字，不会动相册里的任何文件。")
         }
+    }
+
+    // MARK: - 朝花夕拾：往年今天
+
+    @ViewBuilder
+    private var memoryCard: some View {
+        if !memories.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Label("今年的今天", systemImage: "clock.arrow.circlepath")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(memories.count) 个年份")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                ForEach(memories) { group in
+                    memoryRow(group)
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(cardColor, in: RoundedRectangle(cornerRadius: 22))
+        }
+    }
+
+    private func memoryRow(_ group: MemoryGroup) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Text("\(group.yearsAgo) 年前的今天")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text("\(group.year) · \(group.assets.count >= 60 ? "60+" : "\(group.assets.count)") 张")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 8) {
+                ForEach(group.assets.prefix(4), id: \.localIdentifier) { asset in
+                    MediaImageView(asset: asset, targetSize: CGSize(width: 78, height: 78))
+                        .frame(width: 78, height: 78)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onOpenMemory(group) }
     }
 
     // MARK: - 分类卡
