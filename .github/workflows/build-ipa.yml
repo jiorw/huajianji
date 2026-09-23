@@ -1,0 +1,57 @@
+name: 构建无签名 IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    # 必须钉 macos-26：默认 Xcode 26.6 带 iOS 26 SDK，才有 glassEffect 这些 Liquid Glass API
+    # macos-latest 目前默认还是 Xcode 16.x，编译会直接报找不到 API
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 确认工具链版本
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -showsdks | grep -q 'iphoneos2[6-9]' || {
+            echo "!! 需要 Xcode 26 或更新（iOS 26 SDK 才有 Liquid Glass API），当前 runner 不满足"; exit 1; }
+
+      - name: 安装 XcodeGen
+        run: brew install xcodegen
+
+      - name: 生成 Xcode 工程
+        run: xcodegen generate
+
+      - name: 编译 Release（不签名）
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project ZhaoHuaXiShi.xcodeproj \
+            -target ZhaoHuaXiShi \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath derived \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=
+
+      - name: 打包成 IPA
+        run: |
+          set -euo pipefail
+          APP=$(find derived/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -n 1)
+          test -n "$APP"
+          rm -rf Payload && mkdir Payload
+          cp -R "$APP" Payload/
+          ditto -c -k --keepParent Payload ZhaoHuaXiShi-unsigned.ipa
+          ls -lh ZhaoHuaXiShi-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ZhaoHuaXiShi-unsigned-ipa
+          path: ZhaoHuaXiShi-unsigned.ipa
+          if-no-files-found: error
