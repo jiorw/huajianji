@@ -171,13 +171,8 @@ struct PhotoViewerView: View {
     }
 
     private var navRow: some View {
-        HStack(spacing: 6) {
-            tool("chevron.left", tint: .white.opacity(index > 0 ? 0.95 : 0.28)) { stepBack() }
-                .disabled(index == 0)
-            tool("trash", tint: .red) { commit(delete: true) }
-            tool("chevron.right", tint: .white.opacity(0.95)) { commit(delete: false) }
-
-            Spacer(minLength: 4)
+        HStack(spacing: 8) {
+            Spacer(minLength: 0)
 
             tool("info.circle", tint: .white.opacity(0.9)) { showInfo = true }
 
@@ -202,6 +197,8 @@ struct PhotoViewerView: View {
                     .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 19))
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
+
+            Spacer(minLength: 0)
         }
         .animation(.spring(duration: 0.35, bounce: 0.25), value: toolsVisible)
         .padding(.horizontal, 16)
