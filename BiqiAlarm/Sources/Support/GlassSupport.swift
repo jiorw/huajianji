@@ -28,7 +28,7 @@ enum Palette {
 
 extension View {
     /// 标准玻璃面板：放进 ScrollView / VStack 里当卡片用
-    func glassPanel(cornerRadius: CGFloat = 26, tint: Color? = nil) -> some View {
+    func glassPanel(tint: Color? = nil, cornerRadius: CGFloat = 26) -> some View {
         self
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
