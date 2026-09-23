@@ -10,6 +10,7 @@ struct PhotoViewerView: View {
     let startIndex: Int
 
     @StateObject private var playback = FeedPlayback()
+    @StateObject private var cast = CastMonitor()
 
     @State private var index = 0
     @State private var drag: CGSize = .zero
@@ -120,9 +121,10 @@ struct PhotoViewerView: View {
                 Text("\(min(index + 1, store.deck.count)) / \(store.deck.count)")
                     .font(.subheadline.weight(.semibold))
                     .monospacedDigit()
-                Text("待删 \(store.queuedInBatch.count)")
+                Text(cast.isCasting ? "投屏中" : "待删 \(store.queuedInBatch.count)")
                     .font(.caption2)
-                    .foregroundStyle(store.queuedInBatch.isEmpty ? Color.white.opacity(0.55) : Color.red)
+                    .foregroundStyle(cast.isCasting ? Color.green
+                                     : (store.queuedInBatch.isEmpty ? Color.white.opacity(0.55) : Color.red))
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 14)
@@ -130,6 +132,10 @@ struct PhotoViewerView: View {
             .glassEffect(.regular, in: .rect(cornerRadius: 18))
 
             Spacer(minLength: 4)
+
+            RoutePickerButton()
+                .frame(width: 38, height: 38)
+                .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 19))
 
             if isVideo {
                 Button { playback.toggleMute() } label: {
