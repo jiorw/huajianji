@@ -367,7 +367,8 @@ struct SoundPickerSheet: View {
                 AVFormatIDKey: kAudioFormatMPEG4AAC,
                 AVSampleRateKey: 44100,
                 AVNumberOfChannelsKey: 1
-            ], delegate: nil)
+            ])
+            newRecorder.prepareToRecord()
             guard newRecorder.record() else {
                 recordNote = "录音没启动起来，看看是不是别的 App 正占着麦克风"
                 restoreSession()
