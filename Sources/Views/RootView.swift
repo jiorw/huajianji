@@ -45,7 +45,6 @@ struct RootView: View {
                 }
                 main
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .animation(.spring(duration: 0.45, bounce: 0.2), value: store.tab)
                 dock
             }
             .padding(.bottom, 6)
