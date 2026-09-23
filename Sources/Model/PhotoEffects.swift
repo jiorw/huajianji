@@ -1,6 +1,5 @@
 import UIKit
 import CoreImage
-import CoreImage.CIFilterBuiltins
 
 // MARK: - 系统内置照片效果
 
@@ -31,21 +30,24 @@ enum SystemFilter: String, CaseIterable, Identifiable {
         }
     }
 
-    func filtered(_ input: CIImage) -> CIImage {
-        let output: CIFilter?
+    private var ciName: String {
         switch self {
-        case .instant: output = CIFilter.photoEffectInstant()
-        case .process: output = CIFilter.photoEffectProcess()
-        case .transfer: output = CIFilter.photoEffectTransfer()
-        case .chrome: output = CIFilter.photoEffectChrome()
-        case .fade: output = CIFilter.photoEffectFade()
-        case .tonal: output = CIFilter.photoEffectTonal()
-        case .mono: output = CIFilter.photoEffectMono()
-        case .noir: output = CIFilter.photoEffectNoir()
-        case .silvertone: output = CIFilter.photoEffectSilvertone()
+        case .instant: "CIPhotoEffectInstant"
+        case .process: "CIPhotoEffectProcess"
+        case .transfer: "CIPhotoEffectTransfer"
+        case .chrome: "CIPhotoEffectChrome"
+        case .fade: "CIPhotoEffectFade"
+        case .tonal: "CIPhotoEffectTonal"
+        case .mono: "CIPhotoEffectMono"
+        case .noir: "CIPhotoEffectNoir"
+        case .silvertone: "CIPhotoEffectSilvertone"
         }
-        output?.inputImage = input
-        return output?.outputImage ?? input
+    }
+
+    func filtered(_ input: CIImage) -> CIImage {
+        guard let filter = CIFilter(name: ciName) else { return input }
+        filter.setValue(input, forKey: "inputImage")
+        return filter.outputImage ?? input
     }
 }
 
@@ -102,24 +104,24 @@ enum ColorGrade: String, CaseIterable, Identifiable {
                         g: (CGFloat, CGFloat, CGFloat, CGFloat),
                         b: (CGFloat, CGFloat, CGFloat, CGFloat),
                         contrast: Double, saturation: Double, brightness: Double) -> CIImage {
-        let filter = CIFilter.colorMatrix()
-        filter.inputImage = input
-        filter.inputRVector = CIVector(x: r.0, y: r.1, z: r.2, w: r.3)
-        filter.inputGVector = CIVector(x: g.0, y: g.1, z: g.2, w: g.3)
-        filter.inputBVector = CIVector(x: b.0, y: b.1, z: b.2, w: b.3)
-        filter.inputAVector = CIVector(x: 0, y: 0, z: 0, w: 1)
-        filter.inputBiasVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+        guard let filter = CIFilter(name: "CIColorMatrix") else { return input }
+        filter.setValue(input, forKey: "inputImage")
+        filter.setValue(CIVector(x: r.0, y: r.1, z: r.2, w: r.3), forKey: "inputRVector")
+        filter.setValue(CIVector(x: g.0, y: g.1, z: g.2, w: g.3), forKey: "inputGVector")
+        filter.setValue(CIVector(x: b.0, y: b.1, z: b.2, w: b.3), forKey: "inputBVector")
+        filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+        filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputBiasVector")
         guard let tinted = filter.outputImage else { return input }
         return controls(tinted, contrast: contrast, saturation: saturation, brightness: brightness)
     }
 
     private func controls(_ input: CIImage, contrast: Double, saturation: Double,
                           brightness: Double) -> CIImage {
-        let filter = CIFilter.colorControls()
-        filter.inputImage = input
-        filter.inputContrast = contrast
-        filter.inputSaturation = saturation
-        filter.inputBrightness = brightness
+        guard let filter = CIFilter(name: "CIColorControls") else { return input }
+        filter.setValue(input, forKey: "inputImage")
+        filter.setValue(contrast, forKey: "inputContrast")
+        filter.setValue(saturation, forKey: "inputSaturation")
+        filter.setValue(brightness, forKey: "inputBrightness")
         return filter.outputImage ?? input
     }
 }
@@ -257,30 +259,29 @@ enum PhotoEffectEngine {
         guard clamped < 0.999 else { return effect }
         guard clamped > 0.001 else { return base }
 
-        let generator = CIFilter.constantColorGenerator()
-        generator.color = CIColor(red: 1, green: 1, blue: 1, alpha: clamped)
-        guard let mask = generator.outputImage?.cropped(to: base.extent),
-              let blend = CIFilter.blendWithAlphaMask().outputImage else { return effect }
-        _ = blend
-        let filter = CIFilter.blendWithAlphaMask()
-        filter.inputImage = effect
-        filter.maskImage = mask
-        filter.backgroundImage = base
-        return filter.outputImage ?? effect
+        guard let generator = CIFilter(name: "CIConstantColorGenerator"),
+              let mask = generator.outputImage?.cropped(to: base.extent) else { return effect }
+        generator.setValue(CIColor(red: 1, green: 1, blue: 1, alpha: clamped), forKey: "inputColor")
+        guard let solid = generator.outputImage?.cropped(to: base.extent),
+              let blend = CIFilter(name: "CIBlendWithAlphaMask") else { return effect }
+        blend.setValue(effect, forKey: "inputImage")
+        blend.setValue(solid, forKey: "inputMaskImage")
+        blend.setValue(base, forKey: "inputBackgroundImage")
+        return blend.outputImage ?? effect
     }
 
     private static func apply(lut: CubeLUT, to input: CIImage) -> CIImage? {
-        let withSpace = CIFilter.colorCubeWithColorSpace()
-        withSpace.inputCubeDimension = Int32(lut.dimension)
-        withSpace.inputCubeData = lut.data
-        withSpace.inputColorSpace = CGColorSpace(name: CGColorSpace.sRGB)
-        withSpace.inputImage = input
-        if let result = withSpace.outputImage { return result }
-
-        let fallback = CIFilter.colorCube()
-        fallback.inputCubeDimension = Int32(lut.dimension)
-        fallback.inputCubeData = lut.data
-        fallback.inputImage = input
+        if let filter = CIFilter(name: "CIColorCubeWithColorSpace") {
+            filter.setValue(lut.dimension, forKey: "inputCubeDimension")
+            filter.setValue(lut.data, forKey: "inputCubeData")
+            filter.setValue(CGColorSpaceCreateDeviceRGB(), forKey: "inputColorSpace")
+            filter.setValue(input, forKey: "inputImage")
+            if let result = filter.outputImage { return result }
+        }
+        guard let fallback = CIFilter(name: "CIColorCube") else { return nil }
+        fallback.setValue(lut.dimension, forKey: "inputCubeDimension")
+        fallback.setValue(lut.data, forKey: "inputCubeData")
+        fallback.setValue(input, forKey: "inputImage")
         return fallback.outputImage
     }
 }
