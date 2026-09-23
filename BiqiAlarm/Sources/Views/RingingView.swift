@@ -5,6 +5,7 @@ import SwiftUI
 struct RingingView: View {
     @Environment(AlarmStore.self) private var store
     @Environment(AppSettings.self) private var settings
+    @State private var breathing = false
 
     private var state: RingingState? { store.ringing }
 
@@ -16,19 +17,36 @@ struct RingingView: View {
             }
 
             if let state {
-                VStack(spacing: 16) {
-                    header(state)
-                    if state.alarm.missions.isEmpty {
-                        emptyMission(state)
-                    } else {
-                        MissionStage(config: currentConfig(state),
-                                     round: state.missionIndex + 1,
-                                     totalRounds: state.alarm.missions.count,
-                                     timeLimitSeconds: state.alarm.missionTimeLimitSeconds,
-                                     onFailed: { store.lastError = "超时了，重新做" },
-                                     done: { store.completeMission() })
+                ZStack {
+                    Circle()
+                        .fill(RadialGradient(colors: [Color.white.opacity(0.3), .clear],
+                                             center: .center, startRadius: 6, endRadius: 250))
+                        .frame(width: 500, height: 500)
+                        .scaleEffect(breathing ? 1.1 : 0.85)
+                        .opacity(breathing ? 0.9 : 0.3)
+                        .animation(.easeInOut(duration: 1.15).repeatForever(autoreverses: true),
+                                   value: breathing)
+                        .allowsHitTesting(false)
+
+                    VStack(spacing: 16) {
+                        header(state)
+                        if state.alarm.missions.isEmpty {
+                            emptyMission(state)
+                        } else {
+                            MissionStage(config: currentConfig(state),
+                                         round: state.missionIndex + 1,
+                                         totalRounds: state.alarm.missions.count,
+                                         timeLimitSeconds: state.alarm.missionTimeLimitSeconds,
+                                         onFailed: { store.lastError = "超时了，重新做" },
+                                         done: { store.completeMission() })
+                                .id(state.missionIndex)
+                                .transition(.asymmetric(
+                                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                                    removal: .move(edge: .leading).combined(with: .opacity)))
+                        }
+                        controls(state)
                     }
-                    controls(state)
+                    .animation(GlassMotion.settle, value: state.missionIndex)
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 6)
@@ -68,13 +86,16 @@ struct RingingView: View {
                         .foregroundStyle(.white.opacity(0.7))
                 }
                 if state.snoozeCount > 0 {
-                    Text("已贪睡 \(state.snoozeCount) 次").glassChip(tint: Color.black.opacity(0.3))
+                    Text("已贪睡 \(state.snoozeCount) 次")
+                        .glassNumber()
+                        .glassChip(tint: Color.black.opacity(0.3))
                 }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 6) {
                 if !state.alarm.missions.isEmpty {
                     Text("使命 \(min(state.missionIndex + 1, state.alarm.missions.count))/\(state.alarm.missions.count)")
+                        .glassNumber()
                         .glassChip(tint: Color.black.opacity(0.35))
                 }
                 Text(settings.unbeatable ? "必起模式" : "普通模式").glassChip()
@@ -113,6 +134,7 @@ struct RingingView: View {
                         store.snoozeCurrent()
                     } label: {
                         Label(snoozeTitle(state), systemImage: "zzz")
+                            .glassNumber()
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 6)
                     }
