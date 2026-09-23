@@ -265,7 +265,7 @@ struct SleepMusicView: View {
             Text("睡眠声音")
                 .font(.system(size: 34, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
-            Text("七种循环底噪，全部免费开放，没有会员限制，也不含任何广告。听着听着就睡，不用起来关。")
+            Text("七种循环底噪，由本机实时合成，不占存储也不联网。听着听着就睡，不用起来关。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
