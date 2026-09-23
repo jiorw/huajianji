@@ -52,11 +52,11 @@ jobs:
           test -n "$APP"
           rm -rf Payload && mkdir Payload
           cp -R "$APP" Payload/
-          ditto -c -k --keepParent Payload "zhaohuaxishi-$VERSION.ipa"
-          ls -lh "zhaohuaxishi-$VERSION.ipa"
+          ditto -c -k --keepParent Payload "huajianji-$VERSION.ipa"
+          ls -lh "huajianji-$VERSION.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: zhaohuaxishi-${{ env.VERSION }}
-          path: zhaohuaxishi-${{ env.VERSION }}.ipa
+          name: huajianji-${{ env.VERSION }}
+          path: huajianji-${{ env.VERSION }}.ipa
           if-no-files-found: error
