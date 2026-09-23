@@ -5,14 +5,15 @@ struct RootView: View {
     @StateObject private var store = PhotoStore()
     @Environment(\.scenePhase) private var scenePhase
     @Namespace private var glass
+    @Namespace private var zoom
 
     @State private var showAlbums = false
-    @State private var toast: Toast?
+    @State private var viewer: ViewerRequest?
 
-    private struct Toast: Identifiable, Equatable {
-        let id = UUID()
-        let text: String
-        let canUndo: Bool
+    private struct ViewerRequest: Identifiable {
+        let assetID: String
+        let index: Int
+        var id: String { assetID }
     }
 
     var body: some View {
@@ -32,7 +33,7 @@ struct RootView: View {
                 header
                 main
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .animation(.snappy(duration: 0.35), value: store.tab)
+                    .animation(.spring(duration: 0.45, bounce: 0.2), value: store.tab)
                 dock
             }
             .padding(.horizontal, 16)
@@ -46,7 +47,10 @@ struct RootView: View {
         .sheet(isPresented: $showAlbums) {
             AlbumPickerSheet(store: store)
         }
-        .overlay(alignment: .bottom) { toastLayer }
+        .fullScreenCover(item: $viewer) { request in
+            PhotoViewerView(store: store, startIndex: request.index)
+                .navigationTransition(.zoom(sourceID: request.assetID, in: zoom))
+        }
         .alert("出错了", isPresented: Binding(
             get: { store.errorMessage != nil },
             set: { if !$0 { store.errorMessage = nil } }
@@ -106,23 +110,24 @@ struct RootView: View {
         } else if store.tab == .stats {
             StatsView(store: store)
         } else {
-            CardStackView(store: store) {
-                toast = Toast(text: "已移入待删", canUndo: true)
+            CardStackView(store: store, zoom: zoom) { cursor in
+                guard let asset = store.card(at: 0) else { return }
+                viewer = ViewerRequest(assetID: asset.localIdentifier, index: cursor)
             }
         }
     }
 
-    // MARK: - 底部 Dock
+    // MARK: - 底部 Dock（比之前放大 20%）
 
     private var dock: some View {
-        GlassEffectContainer(spacing: 46) {
-            HStack(spacing: 10) {
+        GlassEffectContainer(spacing: 55) {
+            HStack(spacing: 12) {
                 ForEach(RootTab.allCases) { item in
                     dockItem(item)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
         }
         .padding(.top, 10)
     }
@@ -130,54 +135,24 @@ struct RootView: View {
     private func dockItem(_ item: RootTab) -> some View {
         let selected = store.tab == item
         return Button {
-            withAnimation(.snappy(duration: 0.35)) { store.tab = item }
+            withAnimation(.spring(duration: 0.45, bounce: 0.22)) { store.tab = item }
         } label: {
-            VStack(spacing: 5) {
+            VStack(spacing: 6) {
                 Image(systemName: item.symbol)
-                    .font(.system(size: 19, weight: .medium))
+                    .font(.system(size: 23, weight: .medium))
                 Text(item.title)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
             }
             .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white)
-            .frame(width: 76, height: 48)
-            .contentShape(RoundedRectangle(cornerRadius: 24))
+            .frame(width: 91, height: 58)
+            .contentShape(RoundedRectangle(cornerRadius: 29))
         }
         .buttonStyle(.plain)
         .glassEffect(
             selected ? .regular.tint(.blue.opacity(0.40)).interactive() : .regular.interactive(),
-            in: .rect(cornerRadius: 24)
+            in: .rect(cornerRadius: 29)
         )
         .glassEffectID("dock-\(item.rawValue)", in: glass)
-    }
-
-    // MARK: - 轻提示
-
-    @ViewBuilder
-    private var toastLayer: some View {
-        if let toast {
-            HStack(spacing: 14) {
-                Text(toast.text)
-                    .font(.subheadline.weight(.medium))
-                if toast.canUndo, store.canUndo {
-                    Button("撤销") {
-                        store.undoLast()
-                        self.toast = nil
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(.blue)
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-            .glassEffect(.regular, in: .rect(cornerRadius: 22))
-            .padding(.bottom, 100)
-            .task(id: toast.id) {
-                try? await Task.sleep(for: .seconds(2.6))
-                if self.toast?.id == toast.id { self.toast = nil }
-            }
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
     }
 }
 
