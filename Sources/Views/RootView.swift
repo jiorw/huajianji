@@ -3,11 +3,13 @@ import Photos
 
 struct RootView: View {
     @StateObject private var store = PhotoStore()
+    @StateObject private var palette = BackdropPalette()
     @Environment(\.scenePhase) private var scenePhase
     @Namespace private var glass
     @Namespace private var zoom
 
     @State private var showAlbums = false
+    @State private var showSettings = false
     @State private var viewer: ViewerRequest?
 
     private struct ViewerRequest: Identifiable {
@@ -22,12 +24,13 @@ struct RootView: View {
                 .ignoresSafeArea()
 
             LinearGradient(
-                colors: [.black.opacity(0.10), .black.opacity(0.55), .black.opacity(0.78)],
+                colors: [palette.color, palette.color.opacity(0.72), Color.black.opacity(0.86)],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
             .allowsHitTesting(false)
+            .animation(.easeInOut(duration: 0.55), value: palette.color)
 
             VStack(spacing: 0) {
                 header
@@ -40,11 +43,17 @@ struct RootView: View {
         }
         .preferredColorScheme(.dark)
         .task { store.requestAccess() }
+        .onChange(of: store.current?.localIdentifier) { _, _ in
+            palette.update(from: store.current)
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { store.flush() }
         }
         .sheet(isPresented: $showAlbums) {
             AlbumPickerSheet(store: store)
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(store: store)
         }
         .fullScreenCover(item: $viewer) { request in
             PhotoViewerView(store: store, startIndex: request.index)
@@ -108,7 +117,7 @@ struct RootView: View {
         if !store.writable {
             PermissionView(store: store)
         } else if store.tab == .stats {
-            StatsView(store: store, onOpenSettings: { showAlbums = true })
+            StatsView(store: store, onOpenSettings: { showSettings = true })
         } else {
             CardStackView(store: store, zoom: zoom) { cursor in
                 guard let asset = store.card(at: 0) else { return }
