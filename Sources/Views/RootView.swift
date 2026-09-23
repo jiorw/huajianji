@@ -134,7 +134,7 @@ struct RootView: View {
                         .padding(.leading, 18)
                         .padding(.trailing, 9)
                         .frame(height: 42)
-                        .glassEffect(.regular, in: .capsule)
+                        .glassEffect(.regular, in: Capsule())
 
                         Button {
                             withAnimation(.spring(duration: 0.45, bounce: 0.22)) {
@@ -151,7 +151,7 @@ struct RootView: View {
                         .glassEffect(store.mode == .onThisDay
                                      ? .regular.tint(.blue.opacity(0.45)).interactive()
                                      : .regular.interactive(),
-                                     in: .capsule)
+                                     in: Capsule())
                         .glassEffectID("mode", in: glass)
                         .animation(.snappy, value: store.mode)
                     }
