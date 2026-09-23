@@ -82,7 +82,7 @@ struct RootView: View {
 
     private var header: some View {
         HStack {
-            if store.writable, store.tab != .stats {
+            if store.writable, store.tab != .stats, store.tab != .editing {
                 GlassEffectContainer(spacing: 12) {
                     HStack(spacing: 10) {
                         Button {
@@ -146,6 +146,8 @@ struct RootView: View {
             PermissionView(store: store)
         } else if store.tab == .stats {
             StatsView(store: store, onOpenSettings: { showSettings = true })
+        } else if store.tab == .editing {
+            EditorView()
         } else {
             CardStackView(store: store, zoom: zoom) { cursor in
                 guard let asset = store.card(at: 0) else { return }
@@ -157,14 +159,14 @@ struct RootView: View {
     // MARK: - 底部 Dock（比之前放大 20%）
 
     private var dock: some View {
-        GlassEffectContainer(spacing: 40) {
-            HStack(spacing: 8) {
+        GlassEffectContainer(spacing: 30) {
+            HStack(spacing: 4) {
                 ForEach(RootTab.allCases) { item in
                     dockItem(item)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
         }
         .padding(.top, 10)
     }
@@ -174,20 +176,20 @@ struct RootView: View {
         return Button {
             withAnimation(.spring(duration: 0.45, bounce: 0.22)) { store.tab = item }
         } label: {
-            VStack(spacing: 6) {
+            VStack(spacing: 5) {
                 Image(systemName: item.symbol)
-                    .font(.system(size: 23, weight: .medium))
+                    .font(.system(size: 21, weight: .medium))
                 Text(item.title)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
             }
             .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white)
-            .frame(width: 80, height: 58)
-            .contentShape(RoundedRectangle(cornerRadius: 29))
+            .frame(width: 66, height: 56)
+            .contentShape(RoundedRectangle(cornerRadius: 28))
         }
         .buttonStyle(.plain)
         .glassEffect(
             selected ? .regular.tint(.blue.opacity(0.40)).interactive() : .regular.interactive(),
-            in: .rect(cornerRadius: 29)
+            in: .rect(cornerRadius: 28)
         )
         .glassEffectID("dock-\(item.rawValue)", in: glass)
     }
