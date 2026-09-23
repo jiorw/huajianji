@@ -215,11 +215,11 @@ enum PhotoEffectEngine {
     }
 
     private static func apply(lut: CubeLUT, to input: CIImage) -> CIImage? {
-        // 优先带色彩空间的版本，.cube 基本都是 sRGB 编码
+        // .cube 基本都是 sRGB 编码，优先用带色彩空间的版本
         if let filter = CIFilter(name: "CIColorCubeWithColorSpace") {
             filter.setValue(lut.dimension, forKey: "inputCubeDimension")
             filter.setValue(lut.data, forKey: "inputCubeData")
-            filter.setValue(CIColorSpace.sRGB, forKey: "inputColorSpace")
+            filter.setValue(kCGColorSpaceSRGB as String, forKey: "inputColorSpace")
             filter.setValue(input, forKey: kCIInputImageKey)
             if let result = filter.outputImage { return result }
         }
