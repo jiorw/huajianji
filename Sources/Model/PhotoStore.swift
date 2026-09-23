@@ -371,10 +371,10 @@ final class PhotoStore: NSObject, ObservableObject {
     private func matchesTab(_ asset: PHAsset) -> Bool {
         let isShot = asset.mediaSubtypes.contains(.photoScreenshot)
         switch tab {
-        case .photos: asset.mediaType == .image && !isShot
-        case .screenshots: isShot
-        case .videos: asset.mediaType == .video
-        case .stats: true
+        case .photos: return asset.mediaType == .image && !isShot
+        case .screenshots: return isShot
+        case .videos: return asset.mediaType == .video
+        case .stats: return true
         }
     }
 
