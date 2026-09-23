@@ -1,7 +1,7 @@
 import SwiftUI
 import Photos
 
-/// 全屏放大筛选：上滑删除、右滑下一张，本组筛完弹结果页
+/// 全屏放大筛选：双击/捏合缩放，照片左右滑切换、上滑删除；视频上下滑切换
 struct PhotoViewerView: View {
     @ObservedObject var store: PhotoStore
     @Environment(\.dismiss) private var dismiss
@@ -10,35 +10,42 @@ struct PhotoViewerView: View {
 
     @State private var index = 0
     @State private var drag: CGSize = .zero
+    @State private var zoom: CGFloat = 1
+    @State private var lastZoom: CGFloat = 1
+    @State private var pan: CGSize = .zero
+    @State private var lastPan: CGSize = .zero
     @State private var finished = false
 
-    private static let upThreshold: CGFloat = 110
-    private static let rightThreshold: CGFloat = 110
+    private static let swipeThreshold: CGFloat = 96
 
     private var asset: PHAsset? { store.deck.indices.contains(index) ? store.deck[index] : nil }
+    private var isVideo: Bool { asset?.mediaType == .video }
+    private var zoomed: Bool { zoom > 1.02 }
 
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                Color.black.opacity(0.94).ignoresSafeArea()
+                Color.black.opacity(0.95).ignoresSafeArea()
 
                 if let asset {
                     MediaImageView(asset: asset, targetSize: geo.size, contentMode: .fit)
-                        .offset(x: drag.width, y: drag.height)
-                        .scaleEffect(1 - min(abs(drag.height) / 4000, 0.08))
-                        .rotationEffect(.degrees(Double(drag.width / 46)))
-                        .gesture(swipe)
+                        .scaleEffect(zoom)
+                        .offset(x: drag.width + pan.width,
+                                y: drag.height + pan.height)
+                        .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 46)))
+                        .gesture(zoomed ? panGesture : swipeGesture)
+                        .simultaneousGesture(pinchGesture)
+                        .onTapGesture(count: 2) { toggleZoom(in: geo.size) }
                         .id(asset.localIdentifier)
+                        .animation(.spring(duration: 0.45, bounce: 0.24), value: index)
                 }
 
                 VStack(spacing: 0) {
                     header
                     Spacer()
-                    legend
-                        .padding(.bottom, 26)
+                    footer
                 }
             }
-            .overlay { wash }
         }
         .onAppear { index = startIndex }
         .preferredColorScheme(.dark)
@@ -52,7 +59,7 @@ struct PhotoViewerView: View {
         }
     }
 
-    // MARK: - 顶栏
+    // MARK: - 顶栏 / 底栏
 
     private var header: some View {
         HStack {
@@ -89,42 +96,117 @@ struct PhotoViewerView: View {
         .padding(.top, 8)
     }
 
-    private var legend: some View {
-        HStack {
-            Label("右滑 下一张", systemImage: "arrow.right")
-            Spacer()
-            Label("上滑 删除", systemImage: "arrow.up")
+    private var footer: some View {
+        VStack(spacing: 10) {
+            if let asset {
+                Text(TimeText.since(asset.creationDate))
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text(TimeText.precise(asset.creationDate))
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+            HStack {
+                if isVideo {
+                    Label("上滑 下一个", systemImage: "arrow.up")
+                    Spacer()
+                    Label("右滑 删除", systemImage: "trash")
+                } else {
+                    Label("左滑 上一张", systemImage: "arrow.left")
+                    Spacer()
+                    Label("右滑 下一张 · 上滑 删除", systemImage: "arrow.up.right")
+                }
+            }
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.white.opacity(0.5))
         }
-        .font(.caption.weight(.medium))
-        .foregroundStyle(.white.opacity(0.55))
         .padding(.horizontal, 34)
+        .padding(.bottom, 26)
+        .opacity(zoomed ? 0 : 1)
+        .animation(.easeOut(duration: 0.2), value: zoomed)
     }
 
     // MARK: - 手势
 
-    private var swipe: some Gesture {
+    private var swipeGesture: some Gesture {
         DragGesture()
             .onChanged { drag = $0.translation }
             .onEnded { value in
-                let up = value.translation.height < -Self.upThreshold
-                    || value.predictedEndTranslation.height < -420
-                let right = value.translation.width > Self.rightThreshold
-                    || value.predictedEndTranslation.width > 520
-                if up {
-                    commit(delete: true)
-                } else if right {
-                    commit(delete: false)
+                let projected = value.predictedEndTranslation
+                let up = projected.height < -460 || value.translation.height < -Self.swipeThreshold * 1.4
+                let right = projected.width > 520 || value.translation.width > Self.swipeThreshold * 1.4
+                let left = projected.width < -520 || value.translation.width < -Self.swipeThreshold * 1.4
+                let down = projected.height > 460 || value.translation.height > Self.swipeThreshold * 1.4
+
+                if isVideo {
+                    if up { commit(delete: false, forward: true) }
+                    else if down { stepBack() }
+                    else if right { commit(delete: true, forward: true) }
+                    else { settle() }
                 } else {
-                    withAnimation(.spring(duration: 0.45, bounce: 0.3)) { drag = .zero }
+                    if up { commit(delete: true, forward: true) }
+                    else if right { commit(delete: false, forward: true) }
+                    else if left { stepBack() }
+                    else { settle() }
                 }
             }
     }
 
-    private func commit(delete: Bool) {
+    private var panGesture: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                pan = CGSize(width: lastPan.width + value.translation.width,
+                             height: lastPan.height + value.translation.height)
+            }
+            .onEnded { _ in lastPan = pan }
+    }
+
+    private var pinchGesture: some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                zoom = min(max(lastZoom * value.magnification, 1), 5)
+            }
+            .onEnded { _ in
+                lastZoom = zoom
+                if zoom < 1.05 {
+                    withAnimation(.spring(duration: 0.4, bounce: 0.2)) {
+                        zoom = 1
+                        lastZoom = 1
+                        pan = .zero
+                        lastPan = .zero
+                    }
+                }
+            }
+    }
+
+    private func toggleZoom(in size: CGSize) {
+        withAnimation(.spring(duration: 0.45, bounce: 0.18)) {
+            if zoomed {
+                zoom = 1
+                pan = .zero
+            } else {
+                zoom = 2.6
+            }
+            lastZoom = zoom
+            lastPan = pan
+        }
+    }
+
+    private func settle() {
+        withAnimation(.spring(duration: 0.45, bounce: 0.3)) { drag = .zero }
+    }
+
+    private func stepBack() {
+        guard index > 0 else { settle(); return }
+        settle()
+        index -= 1
+    }
+
+    private func commit(delete: Bool, forward: Bool) {
         guard let asset else { return }
         let target: CGSize = delete
-            ? CGSize(width: drag.width, height: -1400)
-            : CGSize(width: 900, height: drag.height)
+            ? CGSize(width: drag.width, height: isVideo ? drag.height : -1400)
+            : CGSize(width: isVideo ? drag.width : 900, height: isVideo ? -1400 : drag.height)
         withAnimation(.easeOut(duration: 0.22)) { drag = target }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(220))
@@ -136,27 +218,5 @@ struct PhotoViewerView: View {
                 finished = true
             }
         }
-    }
-
-    // MARK: - 方向提示
-
-    private enum Intent { case delete, next, none }
-
-    private var intent: Intent {
-        if drag.height < -50 && abs(drag.height) > abs(drag.width) { return .delete }
-        if drag.width > 50 { return .next }
-        return .none
-    }
-
-    @ViewBuilder
-    private var wash: some View {
-        VStack(spacing: 0) {
-            LinearGradient(colors: [Color.red.opacity(intent == .delete ? 0.5 : 0), .clear],
-                           startPoint: .top, endPoint: .center)
-            Spacer()
-            LinearGradient(colors: [.clear, Color.green.opacity(intent == .next ? 0.35 : 0)],
-                           startPoint: .center, endPoint: .bottom)
-        }
-        .allowsHitTesting(false)
     }
 }
