@@ -6,6 +6,7 @@ struct RootView: View {
     @StateObject private var palette = BackdropPalette()
     @StateObject private var meter = FrameMeter()
     @Environment(\.scenePhase) private var scenePhase
+    @Namespace private var glass
     @Namespace private var zoom
 
     @State private var showSettings = false
@@ -169,16 +170,20 @@ struct RootView: View {
             Capsule().fill(Color.black.opacity(0.34))
             Capsule().strokeBorder(.white.opacity(0.13), lineWidth: 1)
 
-            RoundedRectangle(cornerRadius: 24)
-                .fill(Color.black.opacity(0.62))
-                .frame(width: Self.dockItemWidth - 2, height: Self.dockHeight - 8)
-                .offset(x: dockPillOffset(for: selected))
-                .animation(.spring(duration: 0.42, bounce: 0.16), value: store.tab)
-
-            HStack(spacing: 0) {
-                ForEach(RootTab.allCases) { item in
-                    dockItem(item)
+            GlassEffectContainer(spacing: 6) {
+                ZStack {
+                    HStack(spacing: 0) {
+                        ForEach(RootTab.allCases) { item in
+                            dockItem(item)
+                        }
+                    }
+                    // 只有一块会滑动的玻璃，ID 固定，切换栏时它从旧位置形变到新位置
+                    DockSelection(width: Self.dockItemWidth - 6,
+                                  height: Self.dockHeight - 10,
+                                  offset: dockPillOffset(for: selected))
+                        .glassEffectID("dock-selection", in: glass)
                 }
+                .animation(.spring(duration: 0.45, bounce: 0.18), value: store.tab)
             }
         }
         .frame(height: Self.dockHeight)
@@ -208,6 +213,22 @@ struct RootView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// 底栏里那块会滑动、会形变的选中玻璃
+private struct DockSelection: View {
+    let width: CGFloat
+    let height: CGFloat
+    let offset: CGFloat
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 24)
+            .fill(.white.opacity(0.10))
+            .frame(width: width, height: height)
+            .offset(x: offset)
+            .glassEffect(.regular.tint(.blue.opacity(0.42)).interactive(),
+                         in: .rect(cornerRadius: 24))
     }
 }
 
