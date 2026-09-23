@@ -28,7 +28,6 @@ struct CardStackView: View {
             .frame(width: geo.size.width, height: geo.size.height)
             .contentShape(Rectangle())
             .gesture(paging)
-            .overlay(alignment: .bottom) { pageHint(card: card) }
             .task(id: "\(store.cursor)-\(store.card(at: 0)?.localIdentifier ?? "")") {
                 // 只提前预取两张，预取太多会和当前这张抢 PhotoKit 的解码额度
                 let ahead = [store.card(at: 1), store.card(at: 2)].compactMap { $0 }
@@ -131,19 +130,7 @@ struct CardStackView: View {
         }
     }
 
-    // MARK: - 底部页码
-
-    @ViewBuilder
-    private func pageHint(card: CGSize) -> some View {
-        Text("\(store.cursor + 1) / \(store.deck.count)")
-            .font(.footnote.weight(.semibold))
-            .monospacedDigit()
-            .foregroundStyle(.white.opacity(0.75))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .glassEffect(.regular.tint(.black.opacity(0.28)), in: Capsule())
-            .padding(.bottom, 8)
-    }
+    // MARK: - 尺寸
 
     private static func cardSize(in size: CGSize) -> CGSize {
         let width = min(size.width * 0.50, 240)
