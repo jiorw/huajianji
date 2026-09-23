@@ -3,6 +3,7 @@ import Photos
 import CoreLocation
 import ImageIO
 import MapKit
+import AVFoundation
 
 /// 照片详情：顶部照片条 + 相片信息 + 拍摄位置，样式照着系统相册的信息面板做
 struct PhotoInfoSheet: View {
@@ -57,11 +58,14 @@ struct PhotoInfoSheet: View {
         }
     }
 
-    // MARK: - 相片信息
+    // MARK: - 相片信息 / 视频信息
+
+    private var isVideo: Bool { asset.mediaType == .video }
 
     private var photoSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHead(symbol: "camera", title: "相片信息")
+            SectionHead(symbol: isVideo ? "video" : "camera",
+                        title: isVideo ? "视频信息" : "相片信息")
 
             if !meta.device.isEmpty {
                 HStack(alignment: .firstTextBaseline) {
@@ -89,26 +93,13 @@ struct PhotoInfoSheet: View {
                 BulletRow(label: "文件名", value: meta.fileName)
                 BulletRow(label: "分辨率", value: meta.resolution)
                 BulletRow(label: "文件大小", value: meta.fileSize)
-                if !meta.format.isEmpty {
-                    BulletRow(label: "格式", value: meta.format)
+                if isVideo {
+                    BulletRow(label: "视频时长", value: meta.duration)
+                    BulletRow(label: "帧率", value: meta.frameRate)
                 }
-                if !meta.duration.isEmpty {
-                    BulletRow(label: "时长", value: meta.duration)
-                }
-                BulletRow(label: "类型", value: category)
             }
         }
         .padding(.horizontal, 20)
-    }
-
-    private var category: String {
-        if asset.mediaType == .video {
-            return asset.mediaSubtypes.contains(.videoScreenRecording) ? "屏幕录制" : "视频"
-        }
-        if asset.mediaSubtypes.contains(.photoScreenshot) { return "截屏" }
-        if asset.mediaSubtypes.contains(.photoLive) { return "实况照片" }
-        if asset.playbackStyle == .imageAnimated { return "动图" }
-        return "照片"
     }
 
     // MARK: - 拍摄位置
@@ -161,11 +152,17 @@ struct PhotoInfoSheet: View {
 
     private func load() async {
         var m = PhotoMeta(resolution: "\(asset.pixelWidth) × \(asset.pixelHeight)")
-        if asset.mediaType == .video { m.duration = Self.duration(asset.duration) }
+        if isVideo {
+            m.duration = Self.duration(asset.duration)
+        }
         Self.applyFile(&m, of: asset)
-        let raw = await Self.readExif(of: asset)
-        Self.applyExif(&m, raw)
+        if !isVideo {
+            Self.applyExif(&m, await Self.readExif(of: asset))
+        }
         meta = m
+        if isVideo {
+            meta.frameRate = await Self.frameRate(of: asset)
+        }
         guard let location = asset.location else { return }
         let marks = await Self.reverseGeocode(location)
         place = marks.short
@@ -174,9 +171,26 @@ struct PhotoInfoSheet: View {
 
     private static func duration(_ seconds: TimeInterval) -> String {
         let total = Int(seconds.rounded())
+        if total < 60 { return "\(total)秒" }
         let m = total / 60, s = total % 60
         if m >= 60 { return "\(m / 60) 小时 \(m % 60) 分" }
-        return s < 10 ? "\(m):0\(s)" : "\(m):\(s)"
+        return s == 0 ? "\(m)分" : "\(m)分\(s)秒"
+    }
+
+    /// 帧率只能从可播放资源里读，iCloud 上的视频可能要等下载
+    private static func frameRate(of asset: PHAsset) async -> String {
+        let options = PHVideoRequestOptions()
+        options.isNetworkAccessAllowed = true
+        options.deliveryMode = .automatic
+        let av: AVAsset? = await withCheckedContinuation { continuation in
+            PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { item, _, _ in
+                continuation.resume(returning: item)
+            }
+        }
+        guard let rate = av?.tracks(withMediaType: .video).first?.nominalFrameRate, rate > 0 else {
+            return "—"
+        }
+        return String(format: "%.2f fps", rate)
     }
 
     private static func weekdayTime(_ date: Date?) -> String {
@@ -275,6 +289,7 @@ struct PhotoMeta {
     var fileSize = ""
     var format = ""
     var duration = ""
+    var frameRate = ""
 
     struct Chip: Identifiable {
         let id: String
