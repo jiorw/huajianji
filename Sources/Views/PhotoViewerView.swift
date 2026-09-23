@@ -33,7 +33,7 @@ struct PhotoViewerView: View {
                         .offset(x: drag.width + pan.width,
                                 y: drag.height + pan.height)
                         .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 46)))
-                        .gesture(zoomed ? panGesture : swipeGesture)
+                        .gesture(dragGesture)
                         .simultaneousGesture(pinchGesture)
                         .onTapGesture(count: 2) { toggleZoom(in: geo.size) }
                         .id(asset.localIdentifier)
@@ -128,10 +128,22 @@ struct PhotoViewerView: View {
 
     // MARK: - 手势
 
-    private var swipeGesture: some Gesture {
+    /// 放大状态下拖动=平移看图，未放大时拖动=翻页/删除
+    private var dragGesture: some Gesture {
         DragGesture()
-            .onChanged { drag = $0.translation }
+            .onChanged { value in
+                if zoomed {
+                    pan = CGSize(width: lastPan.width + value.translation.width,
+                                 height: lastPan.height + value.translation.height)
+                } else {
+                    drag = value.translation
+                }
+            }
             .onEnded { value in
+                if zoomed {
+                    lastPan = pan
+                    return
+                }
                 let projected = value.predictedEndTranslation
                 let up = projected.height < -460 || value.translation.height < -Self.swipeThreshold * 1.4
                 let right = projected.width > 520 || value.translation.width > Self.swipeThreshold * 1.4
@@ -150,15 +162,6 @@ struct PhotoViewerView: View {
                     else { settle() }
                 }
             }
-    }
-
-    private var panGesture: some Gesture {
-        DragGesture()
-            .onChanged { value in
-                pan = CGSize(width: lastPan.width + value.translation.width,
-                             height: lastPan.height + value.translation.height)
-            }
-            .onEnded { _ in lastPan = pan }
     }
 
     private var pinchGesture: some Gesture {
