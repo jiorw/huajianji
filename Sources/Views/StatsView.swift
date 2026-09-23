@@ -1,118 +1,209 @@
 import SwiftUI
 
+/// 使用统计：照片 / 截屏 / 视频 分类累计 + 腾出空间 + 重置
 struct StatsView: View {
     @ObservedObject var store: PhotoStore
+    var onOpenSettings: () -> Void
 
-    @State private var confirmCommit = false
     @State private var confirmReset = false
+
+    private let cardColor = Color(red: 0.105, green: 0.105, blue: 0.115)
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 14) {
-                GlassEffectContainer(spacing: 14) {
-                    VStack(spacing: 14) {
-                        HStack(spacing: 14) {
-                            tile("已筛选", value: store.reviewedCount, symbol: "checkmark.circle.fill")
-                            tile("待删除", value: store.queuedCount, symbol: "trash.circle.fill", tint: .red)
-                        }
-                        HStack(spacing: 14) {
-                            tile("已删除", value: store.deletedCount, symbol: "xmark.circle.fill")
-                            tile("未筛选", value: store.remainingCount, symbol: "hourglass")
-                        }
-                    }
-                }
-
-                VStack(spacing: 12) {
-                    Button {
-                        confirmCommit = true
-                    } label: {
-                        Label("立即删除待删的 \(store.queuedCount) 张", systemImage: "trash")
-                            .font(.body.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(.red)
-                    .disabled(store.queuedCount == 0 || store.isCommitting)
-
-                    HStack(spacing: 12) {
-                        Button {
-                            store.undoLast()
-                        } label: {
-                            Label("撤销", systemImage: "arrow.uturn.backward")
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 4)
-                        }
-                        .buttonStyle(.glass)
-                        .disabled(!store.canUndo)
-
-                        Button {
-                            store.dealNewDeck()
-                        } label: {
-                            Label("重新发牌", systemImage: "arrow.clockwise")
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 4)
-                        }
-                        .buttonStyle(.glass)
-                    }
-
-                    Button {
-                        confirmReset = true
-                    } label: {
-                        Label("重置筛选记录", systemImage: "exclamationmark.arrow.circlepath")
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 4)
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .center) {
+                    Text("使用统计")
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Button(action: onOpenSettings) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 40, height: 40)
                     }
                     .buttonStyle(.glass)
-                    .tint(.orange)
                 }
-                .padding(18)
-                .glassEffect(.regular, in: .rect(cornerRadius: 28))
+                .padding(.top, 8)
 
-                Text("下滑只会把照片放进入待删队列，相册不会有任何变化；点「立即删除」才会真的删除。删掉的照片还能在系统相册的「最近删除」里找回 30 天。所有记录都存在本机。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 8)
+                ForEach(StatKind.allCases, id: \.self) { kind in
+                    categoryCard(kind)
+                }
+
+                freedCard
+
+                if store.queuedCount > 0 {
+                    pendingCard
+                }
+
+                resetCard
             }
-            .padding(.vertical, 10)
+            .padding(.horizontal, 18)
+            .padding(.bottom, 12)
+            .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
-        .confirmationDialog(
-            "真的删除这 \(store.queuedCount) 张？",
-            isPresented: $confirmCommit,
-            titleVisibility: .visible
-        ) {
-            Button("从相册删除", role: .destructive) {
-                Task { await store.commitQueuedDeletions() }
-            }
-            Button("再想想", role: .cancel) {}
-        } message: {
-            Text("删除后会进入系统相册的「最近删除」，30 天内还能找回。")
-        }
         .confirmationDialog("确定重置？", isPresented: $confirmReset, titleVisibility: .visible) {
-            Button("重置筛选记录", role: .destructive) { store.resetProgress() }
+            Button("重置浏览记录", role: .destructive) { store.resetProgress() }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("只清空「哪些看过 / 哪些待删」的记录，不会删除任何照片。")
+            Text("清空「看过 / 删过 / 腾出多少空间」的累计数字，不会动相册里的任何文件。")
         }
     }
 
-    private func tile(_ label: String, value: Int, symbol: String, tint: Color = .white) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: symbol)
-                .font(.system(size: 20))
-                .foregroundStyle(tint)
-            Text("\(value)")
-                .font(.system(size: 26, weight: .bold).monospacedDigit())
-                .foregroundStyle(.white)
-                .contentTransition(.numericText(value: Double(value)))
-                .animation(.snappy, value: value)
-            Text(label)
-                .font(.caption)
+    // MARK: - 分类卡
+
+    private func categoryCard(_ kind: StatKind) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Label(kind.title, systemImage: kind.symbol)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
+
+            HStack(alignment: .top, spacing: 8) {
+                metric("查看", symbol: "eye.fill", tint: Color(red: 0.36, green: 0.5, blue: 1.0),
+                       value: "\(store.reviewedCount(kind))")
+                metric("删除", symbol: "trash.fill", tint: Color(red: 1.0, green: 0.35, blue: 0.35),
+                       value: "\(store.deletedCount(kind))")
+                metric("清理", symbol: "externaldrive.fill", tint: Color(red: 0.45, green: 0.9, blue: 0.4),
+                       value: Self.text(store.freedBytes(kind)))
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardColor, in: RoundedRectangle(cornerRadius: 22))
+    }
+
+    private func metric(_ title: String, symbol: String, tint: Color, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(title, systemImage: symbol)
+                .font(.caption)
+                .foregroundStyle(tint)
+            Text(value)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - 腾出空间
+
+    private var freedCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("腾出空间", systemImage: "internaldrive")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Text(Self.text(store.totalFreedBytes))
+                .font(.system(size: 30, weight: .bold))
+                .foregroundStyle(.white)
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.12))
+                    HStack(spacing: 2) {
+                        ForEach(StatKind.allCases, id: \.self) { kind in
+                            let share = store.share(of: kind)
+                            if share > 0.001 {
+                                Capsule()
+                                    .fill(barColor(kind))
+                                    .frame(width: max(0, geo.size.width * share - 2))
+                            }
+                        }
+                    }
+                }
+            }
+            .frame(height: 6)
+
+            HStack(spacing: 14) {
+                ForEach(StatKind.allCases, id: \.self) { kind in
+                    HStack(spacing: 5) {
+                        Circle().fill(barColor(kind)).frame(width: 7, height: 7)
+                        Text(kind.title)
+                        Text("\(Int((store.share(of: kind) * 100).rounded()))%")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardColor, in: RoundedRectangle(cornerRadius: 22))
+    }
+
+    private func barColor(_ kind: StatKind) -> Color {
+        switch kind {
+        case .photo: Color(red: 0.36, green: 0.5, blue: 1.0)
+        case .screenshot: Color(red: 1.0, green: 0.35, blue: 0.35)
+        case .video: Color(red: 0.45, green: 0.9, blue: 0.4)
+        }
+    }
+
+    // MARK: - 待确认删除
+
+    private var pendingCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("有 \(store.queuedCount) 张待确认删除", systemImage: "tray.full")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                Button {
+                    store.discardAllQueued()
+                } label: {
+                    Text("放弃").frame(maxWidth: .infinity).padding(.vertical, 5)
+                }
+                .buttonStyle(.glass)
+
+                Button {
+                    Task { await store.commitQueuedDeletions() }
+                } label: {
+                    Text("立即删除")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(.red)
+                .disabled(store.isCommitting)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardColor, in: RoundedRectangle(cornerRadius: 22))
+    }
+
+    // MARK: - 重置
+
+    private var resetCard: some View {
+        Button {
+            confirmReset = true
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("重置浏览记录")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Text("浏览了 \(store.totalReviewed) 个项目，其中 \(store.totalDeleted) 个已删除。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity)
+            .background(cardColor, in: RoundedRectangle(cornerRadius: 22))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private static func text(_ bytes: Int64) -> String {
+        guard bytes > 0 else { return "0字节" }
+        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 }
