@@ -111,7 +111,7 @@ struct RingingView: View {
                 .symbolEffect(.variableColor.iterative, options: .repeating)
             Text("这条闹钟没设使命")
                 .font(.title3.bold())
-            Text("原版里这叫「最容易被关掉」的闹钟。回编辑页加一个使命，会有效得多。")
+            Text("没设使命的闹钟基本等于没设。回编辑页加一个，会有效得多。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
