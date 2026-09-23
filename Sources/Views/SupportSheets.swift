@@ -1,0 +1,179 @@
+import SwiftUI
+import MessageUI
+import UIKit
+
+enum Support {
+    /// TODO: 换成你自己的邮箱，打包前告诉我我直接改
+    static let contactEmail = "zhaohuaxishi.app@example.com"
+    static let assistantName = "暖暖"
+}
+
+// MARK: - 问题反馈
+
+struct FeedbackSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var text = ""
+    @State private var notice = ""
+    @State private var showMailer = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("联系\(Support.assistantName)")
+                    .font(.title2.weight(.bold))
+                Text("用起来哪里别扭、想要什么新功能，都写在这里。发不出去就先复制，回头贴给我也行。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                TextEditor(text: $text)
+                    .scrollContentBackground(.hidden)
+                    .padding(12)
+                    .frame(minHeight: 180)
+                    .background(Color(white: 0.13), in: RoundedRectangle(cornerRadius: 16))
+
+                if !notice.isEmpty {
+                    Text(notice)
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+
+                HStack(spacing: 12) {
+                    Button {
+                        copyAll()
+                    } label: {
+                        Text("复制").frame(maxWidth: .infinity).padding(.vertical, 5)
+                    }
+                    .buttonStyle(.glass)
+
+                    Button {
+                        showMailer = true
+                    } label: {
+                        Text("邮件发送").frame(maxWidth: .infinity).padding(.vertical, 5)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .disabled(!MFMailComposeViewController.canSendMail())
+                }
+
+                Spacer()
+            }
+            .padding(20)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+            .sheet(isPresented: $showMailer) { MailComposer(recipient: Support.contactEmail, body: draft()) }
+        }
+    }
+
+    private func draft() -> String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        return "朝花夕拾 v\(version) · \(ProcessInfo.processInfo.systemVersion)\n\n\(text)"
+    }
+
+    private func copyAll() {
+        UIPasteboard.general.string = draft()
+        notice = "已复制，直接去粘贴就行"
+    }
+}
+
+struct MailComposer: UIViewControllerRepresentable {
+    let recipient: String
+    let body: String
+
+    func makeUIViewController(context: Context) -> MFMailComposeViewController {
+        let controller = MFMailComposeViewController()
+        controller.setToRecipients([recipient])
+        controller.setSubject("朝花夕拾 反馈")
+        controller.setMessageBody(body, isHTML: false)
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: MFMailComposeViewController, context: Context) {}
+}
+
+// MARK: - 关于
+
+struct AboutSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private var version: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("朝花夕拾").font(.title2.weight(.bold))
+                        Text("v\(version) · 随机翻相册，边回忆边清理")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    block("怎么翻", [
+                        "每次从相册里随机发一组，默认 20 张，数量在设置里可调。",
+                        "首页三张卡片扇形叠着，右滑下一张、左滑上一张、点中间那张进全屏。",
+                        "全屏里：照片右滑下一张、上滑删除；视频改成上下滑切页、右滑删除。",
+                        "双击放大，也可以两指捏合，放大后能拖着看细节。"
+                    ])
+
+                    block("四个栏", [
+                        "照片：相册里所有图片，包含截图。",
+                        "截图：只有截图，跟照片栏各筛各的，互不影响。",
+                        "视频：只有视频，进全屏直接自动播放。",
+                        "统计：分栏看浏览了多少、删了多少、腾出多少空间。"
+                    ])
+
+                    block("删除是两段式的", [
+                        "上滑只是把这张放进入待删队列，相册不会有任何变化。",
+                        "一组翻完弹结算页，左边「放弃 · 再来一组」什么都不动，右边「确认删除」才真的删。",
+                        "真删之后还能在系统相册「最近删除」里找回 30 天。",
+                        "设置里可以开演示模式：走完整流程但永远不碰相册文件。"
+                    ])
+
+                    block("其他", [
+                        "收藏：全屏页右上角心形，统计页能翻整个收藏夹。",
+                        "回到那天：只抽往年今天的照片，一键切换。",
+                        "投屏：视频可以直接投给 Apple TV，照片走屏幕镜像。",
+                        "详细信息：拍摄时间、分类、尺寸、文件、GPS 位置、相机参数。",
+                        "每日提醒：本地通知，不经过任何服务器。"
+                    ])
+
+                    block("隐私", [
+                        "只在本机读取相册，没有任何网络请求，不上传照片。",
+                        "浏览进度、收藏、统计全部存在 App 自己的沙盒里。",
+                        "自签安装拿不到 CloudKit 权限，跨设备靠设置里的「导出浏览记录」。"
+                    ])
+                }
+                .padding(20)
+            }
+            .navigationTitle("关于")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func block(_ title: String, _ lines: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            ForEach(lines, id: \.self) { line in
+                Text(line)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 18))
+    }
+}
