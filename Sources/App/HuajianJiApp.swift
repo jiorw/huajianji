@@ -39,21 +39,23 @@ enum MediaCache {
         cache.setObject(image, forKey: key(id, size, mode), cost: cost(image))
     }
 
-    /// 提前把后面几张拉进缓存，翻到时才不会转圈
-    static func prefetch(_ assets: [PHAsset], size: CGSize) {
+    /// 提前把后面几张拉进缓存，翻到时才不会闪空白
+    static func prefetch(_ assets: [PHAsset], size: CGSize,
+                         mode: ContentMode = .fill, scale: CGFloat = 3) {
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
         options.resizeMode = .fast
         options.isNetworkAccessAllowed = true
-        let pixel = CGSize(width: size.width * 3, height: size.height * 3)
+        let pixel = CGSize(width: size.width * scale, height: size.height * scale)
         for asset in assets {
             let id = asset.localIdentifier
-            if get(id, size, .fill) != nil { continue }
+            if get(id, size, mode) != nil { continue }
             PHImageManager.default().requestImage(
-                for: asset, targetSize: pixel, contentMode: .aspectFill, options: options
+                for: asset, targetSize: pixel,
+                contentMode: mode == .fill ? .aspectFill : .aspectFit, options: options
             ) { result, info in
                 guard (info?[PHImageCancelledKey] as? Bool) != true, let result else { return }
-                set(result, id, size, .fill)
+                set(result, id, size, mode)
             }
         }
     }
@@ -79,16 +81,17 @@ struct MediaImageView: View {
     }
 
     var body: some View {
-        ZStack {
-            // 新图到达前继续显示旧图，避免每次换卡都闪一下转圈
-            if let image {
-                Image(uiImage: image)
+        // 缓存命中就当帧出图：新开的视图 state 还是空的，等 onAppear 会闪一帧空白
+        let shown = image ?? MediaCache.get(asset.localIdentifier, targetSize, contentMode)
+        return ZStack {
+            if let shown {
+                Image(uiImage: shown)
                     .resizable()
                     .interpolation(.medium)
                     .aspectRatio(contentMode: contentMode)
             } else {
                 ProgressView()
-                    .controlSize(.medium)
+                    .controlSize(.small)
                     .tint(.white.opacity(0.28))
             }
         }
