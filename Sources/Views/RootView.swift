@@ -116,29 +116,65 @@ struct RootView: View {
     private var header: some View {
         HStack {
             if store.writable, store.tab != .stats, store.tab != .editing {
-                // 一整个胶囊：册名 + 剩余张数小圆徽
-                HStack(spacing: 9) {
-                    Text(store.tab.title)
-                        .font(.system(size: 17, weight: .medium))
-                    Text("\(store.deckRemaining)")
-                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(.white)
-                        .frame(width: 26, height: 26)
-                        .background(.white.opacity(0.20), in: Circle())
-                        .contentTransition(.numericText(value: Double(store.deckRemaining)))
-                        .animation(.snappy, value: store.deckRemaining)
-                }
-                .foregroundStyle(.white)
-                .padding(.leading, 20)
-                .padding(.trailing, 9)
-                .frame(height: 44)
-                .glassEffect(.regular, in: Capsule())
+                headerPill
             }
             Spacer()
         }
         .padding(.top, 6)
         .padding(.horizontal, 18)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 胶囊：⌄ + 当前口径 + 剩余张数；图片栏点开是内容类型下拉，视频栏不给筛
+    @ViewBuilder
+    private var headerPill: some View {
+        let label = HStack(spacing: 9) {
+            if store.tab != .videos {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.65))
+            }
+            Text(store.tab == .videos ? store.tab.title
+                                      : (store.contentFilter == .all ? store.tab.title : store.contentFilter.title))
+                .font(.system(size: 17, weight: .medium))
+            Text("\(store.deckRemaining)")
+                .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                .foregroundStyle(.white)
+                .frame(width: 26, height: 26)
+                .background(.white.opacity(0.20), in: Circle())
+                .contentTransition(.numericText(value: Double(store.deckRemaining)))
+                .animation(.snappy, value: store.deckRemaining)
+        }
+        .foregroundStyle(.white)
+        .padding(.leading, 20)
+        .padding(.trailing, 9)
+        .frame(height: 44)
+        .glassEffect(.regular, in: Capsule())
+
+        if store.tab == .videos {
+            label
+        } else {
+            Menu {
+                Picker("内容类型", selection: $store.contentFilter) {
+                    ForEach(ContentFilter.allCases) { filter in
+                        Label(filter.title, systemImage: filter.symbol).tag(filter)
+                    }
+                }
+
+                Divider()
+
+                Menu {
+                    ForEach([10, 15, 20, 30, 50], id: \.self) { size in
+                        Button("\(size) 张") { store.photoBatchSize = size }
+                    }
+                } label: {
+                    Label("调整每组数量", systemImage: "slider.horizontal.3")
+                }
+            } label: {
+                label
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     // MARK: - 主区域
