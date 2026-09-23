@@ -152,7 +152,9 @@ struct EmptyDeckView: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 44))
                 .foregroundStyle(.green)
-            Text(store.remainingCount > 0 ? "这一批发完了" : "整个相册都过了一遍")
+            Text(store.remainingCount > 0 ? "这一批发完了"
+                 : store.contentFilter == .all ? "整个相册都过了一遍"
+                 : "「\(store.contentFilter.title)」这一类里没有可筛的了")
                 .font(.title3.weight(.semibold))
             Text("点下面的按钮继续发牌，或者去岁华簿清理待删照片。")
                 .font(.footnote)
