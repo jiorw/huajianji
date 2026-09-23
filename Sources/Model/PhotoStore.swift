@@ -88,6 +88,7 @@ final class PhotoStore: NSObject, ObservableObject {
     private var fetchResult: PHFetchResult<PHAsset>?
     private var verdicts: [String: Verdict] = [:]
     private var undoStack: [String] = []
+    private var batchMarked: [String] = []
     private var tabReviewed = 0
     private var persistTask: Task<Void, Never>?
     private var registered = false
@@ -233,7 +234,47 @@ final class PhotoStore: NSObject, ObservableObject {
         }
         deck = picked
         cursor = 0
+        batchMarked = []
         refreshCounts()
+    }
+
+    // MARK: - 首页预览翻页（不产生任何标记）
+
+    var canGoPrevious: Bool { cursor > 0 }
+    var canGoNext: Bool { cursor + 1 < deck.count }
+
+    func goNextPreview() {
+        guard canGoNext else { return }
+        cursor += 1
+    }
+
+    func goPreviousPreview() {
+        guard canGoPrevious else { return }
+        cursor -= 1
+    }
+
+    func focus(_ asset: PHAsset) {
+        if let position = deck.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }) {
+            cursor = position
+        }
+    }
+
+    /// 本批里被标记待删、但还没真正删除的
+    var queuedInBatch: [String] {
+        batchMarked.filter { verdicts[$0] == .queued }
+    }
+
+    /// 放弃：本批待删标记全部退回，不删任何东西，直接再来一组
+    func abandonBatch() {
+        for id in batchMarked where verdicts[id] == .queued {
+            verdicts.removeValue(forKey: id)
+            tabReviewed = max(0, tabReviewed - 1)
+        }
+        undoStack.removeAll()
+        batchMarked = []
+        writeToDisk()
+        refreshCounts()
+        deal()
     }
 
     private func pruneDeck() {
@@ -249,32 +290,21 @@ final class PhotoStore: NSObject, ObservableObject {
 
     // MARK: - 筛选
 
-    func mark(_ verdict: Verdict) {
-        guard let asset = current else { return }
-        verdicts[asset.localIdentifier] = verdict
-        undoStack.append(asset.localIdentifier)
+    /// 全屏筛选页标记一张：.queued 待删 / .kept 看过保留
+    func mark(_ verdict: Verdict, assetID: String) {
+        guard verdicts[assetID] == nil else { return }
+        verdicts[assetID] = verdict
+        undoStack.append(assetID)
+        if !batchMarked.contains(assetID) { batchMarked.append(assetID) }
         tabReviewed += 1
         schedulePersist()
-        advance()
         refreshCounts()
-    }
-
-    /// 右滑「下一个」：不改状态，只把这张记为已看过
-    func skip() {
-        mark(.kept)
-    }
-
-    private func advance() {
-        if cursor + 1 < deck.count {
-            cursor += 1
-        } else {
-            deal()
-        }
     }
 
     func undoLast() {
         guard let id = undoStack.popLast() else { return }
         verdicts.removeValue(forKey: id)
+        batchMarked.removeAll { $0 == id }
         tabReviewed = max(0, tabReviewed - 1)
         if let position = deck.firstIndex(where: { $0.localIdentifier == id }) {
             cursor = position
