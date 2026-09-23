@@ -29,12 +29,13 @@ jobs:
       - name: 编译 Release（不签名）
         run: |
           set -euo pipefail
+          # -target 模式下不能用 -derivedDataPath，直接指定 SYMROOT
           xcodebuild build \
             -project ZhaoHuaXiShi.xcodeproj \
             -target ZhaoHuaXiShi \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath derived \
+            SYMROOT="$(pwd)/build_out" \
             ONLY_ACTIVE_ARCH=NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
@@ -43,7 +44,7 @@ jobs:
       - name: 打包成 IPA
         run: |
           set -euo pipefail
-          APP=$(find derived/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -n 1)
+          APP=$(find build_out/Release-iphoneos -maxdepth 1 -name '*.app' | head -n 1)
           test -n "$APP"
           rm -rf Payload && mkdir Payload
           cp -R "$APP" Payload/
