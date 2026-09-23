@@ -85,6 +85,57 @@ enum RootTab: Int, CaseIterable, Identifiable {
     }
 }
 
+/// 当前栏里再按内容类型筛一遍，对应原版顶部下拉菜单那几项
+enum ContentFilter: String, CaseIterable, Identifiable {
+    case all
+    case screenshot
+    case selfie
+    case live
+    case animated
+    case tall
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .all: "照片"
+        case .screenshot: "截屏"
+        case .selfie: "自拍"
+        case .live: "实况"
+        case .animated: "动图"
+        case .tall: "长图"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .all: "photo"
+        case .screenshot: "camera.viewfinder"
+        case .selfie: "person.crop.square"
+        case .live: "livephoto"
+        case .animated: "film"
+        case .tall: "rectangle.portrait"
+        }
+    }
+
+    func matches(_ asset: PHAsset) -> Bool {
+        switch self {
+        case .all:
+            return true
+        case .screenshot:
+            return asset.mediaSubtypes.contains(.photoScreenshot)
+        case .selfie:
+            return asset.mediaSubtypes.contains(.photoSelfie)
+        case .live:
+            return asset.mediaSubtypes.contains(.photoLive)
+        case .animated:
+            return asset.playbackStyle == .imageAnimated
+        case .tall:
+            return asset.pixelWidth > 0 && asset.pixelHeight >= asset.pixelWidth * 2
+        }
+    }
+}
+
 enum BrowseMode: String, CaseIterable, Identifiable {
     case blindBox
     case onThisDay
@@ -176,6 +227,15 @@ final class PhotoStore: NSObject, ObservableObject {
             guard oldValue != mode else { return }
             defaults.set(mode.rawValue, forKey: Keys.mode)
             invalidateAllPools()
+            refreshLibrary(redeal: true)
+        }
+    }
+
+    /// 顶部下拉菜单选的内容类型，只在图片栏生效
+    @Published var contentFilter: ContentFilter = .all {
+        didSet {
+            guard oldValue != contentFilter else { return }
+            invalidateCurrentPool()
             refreshLibrary(redeal: true)
         }
     }
@@ -274,10 +334,11 @@ final class PhotoStore: NSObject, ObservableObject {
     /// 存 id 不存下标：PHFetchResult 会随相册变化自己更新，下标会错位
     private var candidates: [String] = []
     private var tabTotal = 0
-    /// 每个分类的池子和抓取结果都缓存，切栏不再全库重扫
+    /// 每个分类的池子和抓取结果都缓存，切栏不再全库重扫；池子还要按内容类型分开
     private struct Pool { let total: Int; var candidates: [String] }
-    private var pools: [Int: Pool] = [:]
+    private var pools: [String: Pool] = [:]
     private var fetchCache: [Int: PHFetchResult<PHAsset>] = [:]
+    private var poolKey: String { "\(tab.rawValue)|\(contentFilter.rawValue)" }
     private var persistTask: Task<Void, Never>?
     private var registered = false
 
@@ -414,16 +475,16 @@ final class PhotoStore: NSObject, ObservableObject {
 
     private func refreshLibrary(redeal: Bool) {
         guard writable else { return }
-        let key = tab.rawValue
+        let fetchKey = tab.rawValue
         let result: PHFetchResult<PHAsset>
-        if let cached = fetchCache[key] {
+        if let cached = fetchCache[fetchKey] {
             result = cached
         } else {
             result = currentFetchResult()
-            fetchCache[key] = result
+            fetchCache[fetchKey] = result
         }
         fetchResult = result
-        if let pool = pools[key] {
+        if let pool = pools[poolKey] {
             tabTotal = pool.total
             candidates = pool.candidates
         } else {
@@ -450,6 +511,7 @@ final class PhotoStore: NSObject, ObservableObject {
 
     private func eligible(_ asset: PHAsset) -> Bool {
         guard verdicts[vkey(asset.localIdentifier)] == nil else { return false }
+        if tab != .videos, !contentFilter.matches(asset) { return false }
         guard mode == .onThisDay else { return true }
         return isOnThisDay(asset)
     }
@@ -478,7 +540,7 @@ final class PhotoStore: NSObject, ObservableObject {
         }
         tabTotal = matching
         candidates = fresh
-        pools[tab.rawValue] = Pool(total: matching, candidates: fresh)
+        pools[poolKey] = Pool(total: matching, candidates: fresh)
     }
 
     /// 相册内容或筛选口径变了：全部作废
@@ -489,7 +551,7 @@ final class PhotoStore: NSObject, ObservableObject {
 
     /// 只有当前分类的池子需要重算
     private func invalidateCurrentPool() {
-        pools[tab.rawValue] = nil
+        pools[poolKey] = nil
     }
 
     /// 从相册里随机发一批，数量最多 deckSize 张
@@ -518,7 +580,7 @@ final class PhotoStore: NSObject, ObservableObject {
         deck = picked.compactMap { byID[$0] }
         cursor = 0
         batchMarked = []
-        pools[tab.rawValue] = Pool(total: tabTotal, candidates: candidates)
+        pools[poolKey] = Pool(total: tabTotal, candidates: candidates)
         refreshCounts()
     }
 
