@@ -19,11 +19,13 @@ struct PhotoViewerView: View {
     @State private var lastPan: CGSize = .zero
     @State private var finished = false
     @State private var showInfo = false
+    @State private var livePlaying = false
 
     private static let swipeThreshold: CGFloat = 96
 
     private var asset: PHAsset? { store.deck.indices.contains(index) ? store.deck[index] : nil }
     private var isVideo: Bool { asset?.mediaType == .video }
+    private var isLive: Bool { asset?.mediaSubtypes.contains(.photoLive) ?? false }
     private var zoomed: Bool { zoom > 1.02 }
 
     var body: some View {
@@ -36,6 +38,14 @@ struct PhotoViewerView: View {
                         PlayerUIView(player: playback.player)
                             .offset(drag)
                             .gesture(dragGesture)
+                            .id(asset.localIdentifier)
+                    } else if isLive {
+                        LivePhotoView(asset: asset, playing: livePlaying)
+                            .offset(drag)
+                            .gesture(dragGesture)
+                            .onLongPressGesture(minimumDuration: 0.25, pressing: { pressing in
+                                livePlaying = pressing
+                            }, perform: {})
                             .id(asset.localIdentifier)
                     } else {
                         MediaImageView(asset: asset, targetSize: geo.size, contentMode: .fit)
@@ -83,6 +93,7 @@ struct PhotoViewerView: View {
         pan = .zero
         lastPan = .zero
         drag = .zero
+        livePlaying = false
         guard let asset else { return }
         if asset.mediaType == .video {
             playback.load(asset)
@@ -182,6 +193,10 @@ struct PhotoViewerView: View {
                     Label("上滑 下一个", systemImage: "arrow.up")
                     Spacer()
                     Label("右滑 删除", systemImage: "trash")
+                } else if isLive {
+                    Label("长按 播放实况", systemImage: "livephoto")
+                    Spacer()
+                    Label("右滑 下一张 · 上滑 删除", systemImage: "arrow.up.right")
                 } else {
                     Label("左滑 上一张", systemImage: "arrow.left")
                     Spacer()
