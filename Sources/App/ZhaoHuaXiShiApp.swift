@@ -99,8 +99,17 @@ struct VideoPreview: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
-        controller.player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
-        controller.allowsPictureInPicturePlayback = false
+        let options = PHVideoRequestOptions()
+        options.isNetworkAccessAllowed = true
+        options.deliveryMode = .automatic
+        // PHAsset 不是 AVAsset，要先异步导出可播放的资源
+        PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, _ in
+            guard let avAsset else { return }
+            DispatchQueue.main.async {
+                controller.player = AVPlayer(playerItem: AVPlayerItem(asset: avAsset))
+                controller.player?.play()
+            }
+        }
         return controller
     }
 
