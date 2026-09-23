@@ -110,7 +110,7 @@ struct PhotoViewerView: View {
     // MARK: - 顶栏
 
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 15, weight: .semibold))
@@ -119,45 +119,28 @@ struct PhotoViewerView: View {
             }
             .buttonStyle(.glass)
 
-            Spacer(minLength: 4)
+            Spacer(minLength: 6)
 
-            VStack(spacing: 3) {
+            HStack(spacing: 8) {
                 Text("\(min(index + 1, store.deck.count)) / \(store.deck.count)")
                     .font(.subheadline.weight(.semibold))
                     .monospacedDigit()
-                Text(cast.isCasting ? "投屏中" : "待删 \(store.queuedInBatch.count)")
-                    .font(.caption2)
-                    .foregroundStyle(cast.isCasting ? Color.green
-                                     : (store.queuedInBatch.isEmpty ? Color.white.opacity(0.55) : Color.red))
+                Circle().fill(store.queuedInBatch.isEmpty
+                             ? Color.white.opacity(0.3) : Color.red)
+                    .frame(width: 6, height: 6)
+                Text("待删 \(store.queuedInBatch.count)")
+                    .font(.caption)
+                    .foregroundStyle(store.queuedInBatch.isEmpty
+                                     ? Color.white.opacity(0.55) : Color.red)
             }
             .foregroundStyle(.white)
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.vertical, 9)
             .glassEffect(.regular, in: .rect(cornerRadius: 18))
 
-            Spacer(minLength: 4)
-
-            RoutePickerButton()
-                .frame(width: 38, height: 38)
-                .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 19))
-
-            if isVideo {
-                Button { playback.toggleMute() } label: {
-                    Image(systemName: playback.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 38, height: 38)
-                }
-                .buttonStyle(.glass)
-            }
-
-            Button { showInfo = true } label: {
-                Image(systemName: "info.circle")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 38, height: 38)
-            }
-            .buttonStyle(.glass)
+            Spacer(minLength: 6)
 
             Button { favoriteTapped() } label: {
                 Image(systemName: favorited ? "heart.fill" : "heart")
@@ -193,39 +176,39 @@ struct PhotoViewerView: View {
     }
 
     private var navRow: some View {
-        HStack(spacing: 12) {
-            Button { stepBack() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white.opacity(index > 0 ? 0.95 : 0.3))
-                    .frame(width: 52, height: 44)
-            }
-            .buttonStyle(.plain)
-            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
-            .disabled(index == 0)
+        HStack(spacing: 8) {
+            tool("chevron.left", tint: .white.opacity(index > 0 ? 0.95 : 0.28)) { stepBack() }
+                .disabled(index == 0)
+            tool("trash", tint: .red) { commit(delete: true) }
+            tool("chevron.right", tint: .white.opacity(0.95)) { commit(delete: false) }
 
-            Button { commit(delete: true) } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.red)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-            }
-            .buttonStyle(.plain)
-            .glassEffect(.regular.tint(.red.opacity(0.22)).interactive(), in: .rect(cornerRadius: 22))
+            Spacer(minLength: 4)
 
-            Button { commit(delete: false) } label: {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.95))
-                    .frame(width: 52, height: 44)
+            tool("info.circle", tint: .white.opacity(0.9)) { showInfo = true }
+
+            RoutePickerButton()
+                .frame(width: 40, height: 40)
+                .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 20))
+
+            if isVideo {
+                tool(playback.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                     tint: .white.opacity(0.9)) { playback.toggleMute() }
             }
-            .buttonStyle(.plain)
-            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
         }
-        .padding(.horizontal, 22)
+        .padding(.horizontal, 16)
         .padding(.bottom, 10)
         .opacity(zoomed ? 0 : 1)
+    }
+
+    private func tool(_ symbol: String, tint: Color,
+                      action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 40, height: 40)
+        }
+        .buttonStyle(.glass)
     }
 
     // MARK: - 底栏
