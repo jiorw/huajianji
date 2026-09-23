@@ -163,7 +163,11 @@ final class PhotoStore: NSObject, ObservableObject {
     @Published var tab: RootTab = .photos {
         didSet {
             guard oldValue != tab, tab.mediaType != nil else { return }
-            refreshLibrary(redeal: true)
+            // 先让 Dock 动画画出来，下一拍再碰相册数据
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(16))
+                self.refreshLibrary(redeal: true)
+            }
         }
     }
 
@@ -171,6 +175,7 @@ final class PhotoStore: NSObject, ObservableObject {
         didSet {
             guard oldValue != mode else { return }
             defaults.set(mode.rawValue, forKey: Keys.mode)
+            invalidateAllPools()
             refreshLibrary(redeal: true)
         }
     }
@@ -221,6 +226,13 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var showFPS: Bool {
+        didSet {
+            guard oldValue != showFPS else { return }
+            defaults.set(showFPS, forKey: Keys.showFPS)
+        }
+    }
+
     @Published var timeFormat: TimeFormat {
         didSet {
             guard oldValue != timeFormat else { return }
@@ -249,6 +261,7 @@ final class PhotoStore: NSObject, ObservableObject {
         static let haptics = "huajianji.haptics"
         static let doubleTap = "huajianji.doubleTap"
         static let timeFormat = "huajianji.timeFormat"
+        static let showFPS = "huajianji.showFPS"
     }
 
     private let defaults = UserDefaults.standard
@@ -260,6 +273,10 @@ final class PhotoStore: NSObject, ObservableObject {
     /// 当前分类下还没筛过的资源在 fetchResult 里的下标，发牌时直接从这里取
     private var candidates: [Int] = []
     private var tabTotal = 0
+    /// 每个分类的池子和抓取结果都缓存，切栏不再全库重扫
+    private struct Pool { let total: Int; var candidates: [Int] }
+    private var pools: [Int: Pool] = [:]
+    private var fetchCache: [Int: PHFetchResult<PHAsset>] = [:]
     private var persistTask: Task<Void, Never>?
     private var registered = false
 
@@ -295,6 +312,7 @@ final class PhotoStore: NSObject, ObservableObject {
         hapticsEnabled = stored.object(forKey: Keys.haptics) as? Bool ?? true
         doubleTapAction = DoubleTapAction(rawValue: stored.string(forKey: Keys.doubleTap) ?? "") ?? .zoom
         timeFormat = TimeFormat(rawValue: stored.string(forKey: Keys.timeFormat) ?? "") ?? .relative
+        showFPS = stored.bool(forKey: Keys.showFPS)
         super.init()
         if let data = defaults.data(forKey: Keys.verdicts),
            let saved = try? JSONDecoder().decode([String: Verdict].self, from: data) {
@@ -395,8 +413,21 @@ final class PhotoStore: NSObject, ObservableObject {
 
     private func refreshLibrary(redeal: Bool) {
         guard writable else { return }
-        fetchResult = currentFetchResult()
-        rebuildCandidates()
+        let key = tab.rawValue
+        let result: PHFetchResult<PHAsset>
+        if let cached = fetchCache[key] {
+            result = cached
+        } else {
+            result = currentFetchResult()
+            fetchCache[key] = result
+        }
+        fetchResult = result
+        if let pool = pools[key] {
+            tabTotal = pool.total
+            candidates = pool.candidates
+        } else {
+            rebuildCandidates()
+        }
         if redeal {
             deal()
         } else {
@@ -445,6 +476,18 @@ final class PhotoStore: NSObject, ObservableObject {
             fresh = fresh.filter { eligible(result.object(at: $0)) }
         }
         candidates = fresh
+        pools[tab.rawValue] = Pool(total: matching, candidates: fresh)
+    }
+
+    /// 相册内容或筛选口径变了：全部作废
+    private func invalidateAllPools() {
+        pools.removeAll()
+        fetchCache.removeAll()
+    }
+
+    /// 只有当前分类的池子需要重算
+    private func invalidateCurrentPool() {
+        pools[tab.rawValue] = nil
     }
 
     /// 从相册里随机发一批，数量最多 deckSize 张
@@ -470,6 +513,7 @@ final class PhotoStore: NSObject, ObservableObject {
         deck = picked
         cursor = 0
         batchMarked = []
+        pools[tab.rawValue] = Pool(total: tabTotal, candidates: candidates)
         refreshCounts()
     }
 
@@ -524,8 +568,8 @@ final class PhotoStore: NSObject, ObservableObject {
         undoStack.removeAll()
         batchMarked = []
         writeToDisk()
-        rebuildCandidates()
-        refreshCounts()
+        invalidateCurrentPool()
+        refreshLibrary(redeal: false)
     }
 
     /// 放弃：本批待删标记全部退回，不删任何东西，直接再来一组
@@ -539,8 +583,8 @@ final class PhotoStore: NSObject, ObservableObject {
         undoStack.removeAll()
         batchMarked = []
         writeToDisk()
-        rebuildCandidates()
-        deal()
+        invalidateCurrentPool()
+        refreshLibrary(redeal: true)
     }
 
     private func pruneDeck() {
@@ -640,6 +684,7 @@ final class PhotoStore: NSObject, ObservableObject {
         batchMarked = []
         kindOf.removeAll()
         stats = CleanupStats()
+        invalidateAllPools()
         writeToDisk()
         refreshLibrary(redeal: true)
     }
@@ -736,6 +781,9 @@ final class PhotoStore: NSObject, ObservableObject {
 
 extension PhotoStore: PHPhotoLibraryChangeObserver {
     nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
-        Task { @MainActor in self.refreshLibrary(redeal: false) }
+        Task { @MainActor in
+            self.invalidateAllPools()
+            self.refreshLibrary(redeal: false)
+        }
     }
 }
