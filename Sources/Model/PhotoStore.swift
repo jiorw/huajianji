@@ -222,6 +222,7 @@ final class PhotoStore: NSObject, ObservableObject {
     @Published var tab: RootTab = .photos {
         didSet {
             guard oldValue != tab, tab.mediaType != nil else { return }
+            deckHistory.removeAll()   // 换栏就是另一批牌，旧组不算历史
             // 等底栏玻璃的形变动画走完再去碰相册数据，否则主线程会把它卡成一顿一顿
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(460))
@@ -336,6 +337,8 @@ final class PhotoStore: NSObject, ObservableObject {
     private var fetchResult: PHFetchResult<PHAsset>?
     private var verdicts: [String: Verdict] = [:]
     private var undoStack: [String] = []
+    /// 最近发过的几组；左滑退到本组第一张时用它翻回上一组
+    private var deckHistory: [[PHAsset]] = []
     private var batchMarked: [String] = []
     private var kindOf: [String: String] = [:]
     /// 当前分类下还没筛过的资源 id，发牌时直接从这里随机抽。
@@ -643,6 +646,11 @@ final class PhotoStore: NSObject, ObservableObject {
         var byID: [String: PHAsset] = [:]
         PHAsset.fetchAssets(withLocalIdentifiers: picked, options: nil)
             .enumerateObjects { asset, _, _ in byID[asset.localIdentifier] = asset }
+        // 换组前把旧组留一份，左滑退到第一张时还能翻回去
+        if !deck.isEmpty {
+            deckHistory.append(deck)
+            if deckHistory.count > 8 { deckHistory.removeFirst() }
+        }
         deck = picked.compactMap { byID[$0] }
         cursor = 0
         batchMarked = []
@@ -652,7 +660,7 @@ final class PhotoStore: NSObject, ObservableObject {
 
     // MARK: - 首页预览翻页（不产生任何标记）
 
-    var canGoPrevious: Bool { cursor > 0 }
+    var canGoPrevious: Bool { cursor > 0 || !deckHistory.isEmpty }
     var canGoNext: Bool { cursor + 1 < deck.count }
 
     func goNextPreview() {
@@ -660,9 +668,18 @@ final class PhotoStore: NSObject, ObservableObject {
         cursor += 1
     }
 
+    /// 在本组里就往回退；已经退到第一张就翻回上一组，接着从那张继续退，
+    /// 这样左滑在任何时候都有反馈，不会变成「只能右滑」
     func goPreviousPreview() {
         guard canGoPrevious else { return }
-        cursor -= 1
+        if cursor > 0 {
+            cursor -= 1
+            return
+        }
+        guard let previous = deckHistory.popLast() else { return }
+        deckHistory.append(deck)          // 当前这组压回去，右滑还能再回来
+        deck = previous
+        cursor = max(previous.count - 1, 0)
     }
 
     func focus(_ asset: PHAsset) {
