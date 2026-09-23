@@ -14,6 +14,7 @@ struct SettingsView: View {
             Form {
                 Section("会员") {
                     LabeledContent("状态", value: "Pro · 终身已解锁")
+                    LabeledContent("版本", value: "朝花夕拾 \(Self.appVersion)")
                     Text("这份构建没有内购、没有每日额度限制，所有功能直接可用。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -121,6 +122,10 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    private static var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 
     private var reminderTime: Binding<Date> {
