@@ -33,10 +33,9 @@ enum NotificationEngine {
         let ring = UNNotificationCategory(identifier: ringCategory,
                                           actions: [mission, stop],
                                           intentIdentifiers: [],
-                                          hiddenPreviewsBodyPlaceholder: "闹钟响了",
-                                          categoryIdentifier: ringCategory)
+                                          options: [])
         let remind = UNNotificationCategory(identifier: reminderCategory, actions: [],
-                                           intentIdentifiers: [], categoryIdentifier: reminderCategory)
+                                           intentIdentifiers: [], options: [])
         UNUserNotificationCenter.current().setNotificationCategories([ring, remind])
     }
 
