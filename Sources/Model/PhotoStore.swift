@@ -175,6 +175,14 @@ enum DoubleTapAction: String, CaseIterable, Identifiable {
     }
 }
 
+/// 朝花夕拾：往年今天拍的东西，按年份分组
+struct MemoryGroup: Identifiable {
+    let year: Int
+    let assets: [PHAsset]
+    var id: Int { year }
+    var yearsAgo: Int { Calendar.current.component(.year, from: Date()) - year }
+}
+
 @MainActor
 final class PhotoStore: NSObject, ObservableObject {
 
@@ -415,6 +423,42 @@ final class PhotoStore: NSObject, ObservableObject {
         return list.sorted {
             ($0.creationDate ?? .distantPast) > ($1.creationDate ?? .distantPast)
         }
+    }
+
+    // MARK: - 朝花夕拾（往年今天）
+
+    /// 一年一条查询交给 PhotoKit 过滤，比全库扫一遍便宜得多；放到后台线程调
+    nonisolated static func memoryGroups() -> [MemoryGroup] {
+        let calendar = Calendar.current
+        let today = calendar.dateComponents([.month, .day], from: Date())
+        let thisYear = calendar.component(.year, from: Date())
+        var groups: [MemoryGroup] = []
+        for year in stride(from: thisYear - 1, through: max(2007, thisYear - 15), by: -1) {
+            var components = today
+            components.year = year
+            guard let start = calendar.date(from: components),
+                  let end = calendar.date(byAdding: .day, value: 1, to: start) else { continue }
+            let options = PHFetchOptions()
+            options.predicate = NSPredicate(format: "creationDate >= %@ AND creationDate < %@",
+                                            start as NSDate, end as NSDate)
+            options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            var list: [PHAsset] = []
+            PHAsset.fetchAssets(with: options).enumerateObjects { asset, _, _ in
+                if list.count < 60 { list.append(asset) }
+            }
+            if !list.isEmpty { groups.append(MemoryGroup(year: year, assets: list)) }
+        }
+        return groups
+    }
+
+    /// 把某年的「今天」当成一组牌摊开，直接进大图页翻
+    func showMemory(_ assets: [PHAsset]) {
+        guard !assets.isEmpty else { return }
+        deck = assets
+        cursor = 0
+        batchMarked = []
+        undoStack.removeAll()
+        refreshCounts()
     }
 
     // MARK: - 统计读数
