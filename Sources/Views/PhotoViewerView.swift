@@ -43,7 +43,9 @@ struct PhotoViewerView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                Color.black.opacity(0.95).ignoresSafeArea()
+                // 必须完全不透明：之前留了 5% 透明，首页卡片的白边和底栏图标会漏出来，
+                // 看着就像大图后面还叠着一层图标
+                Color.black.ignoresSafeArea()
 
                 mediaLayer(size: geo.size)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -133,8 +135,9 @@ struct PhotoViewerView: View {
     @ViewBuilder
     private func mediaLayer(size: CGSize) -> some View {
         ZStack {
-            // 垫一层下一张：前一张飞走时露出来的是它，而不是黑底
-            if let next = nextAsset, !isVideo {
+            // 只在拖动/飞行的那一下才画垫底：它和前台比例不同，常驻的话会露出上下两条，
+            // 看着就像两张图重叠
+            if let next = nextAsset, !isVideo, drag != .zero {
                 MediaImageView(asset: next, targetSize: size, contentMode: .fit)
             }
 
