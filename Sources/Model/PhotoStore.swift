@@ -69,7 +69,7 @@ enum RootTab: Int, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .photos: "photo.on.rectangle.angled"
-        case .screenshots: "crop.fill"
+        case .screenshots: "camera.viewfinder"
         case .editing: "camera.filters"
         case .videos: "play.rectangle.fill"
         case .stats: "chart.bar.xaxis"
