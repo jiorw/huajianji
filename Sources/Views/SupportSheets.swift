@@ -27,7 +27,7 @@ struct FeedbackSheet: View {
                     .scrollContentBackground(.hidden)
                     .padding(12)
                     .frame(minHeight: 180)
-                    .background(Color(white: 0.13), in: RoundedRectangle(cornerRadius: 16))
+                    .glassEffect(.regular, in: .rect(cornerRadius: 16))
 
                 if !notice.isEmpty {
                     Text(notice)
@@ -62,6 +62,8 @@ struct FeedbackSheet: View {
                     Button("完成") { dismiss() }
                 }
             }
+            // 底下透一点 App 的模糊照片，玻璃卡片才有东西可折射
+            .presentationBackground(.black.opacity(0.72))
         }
     }
 
@@ -107,19 +109,20 @@ struct AboutSheet: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 18))
+                        .glassEffect(.regular, in: .rect(cornerRadius: 18))
 
                     block("怎么翻", [
                         "每次从相册里随机发一组，默认 20 张，数量在设置里可调。",
                         "首页三张卡片扇形叠着，右滑下一张、左滑上一张、点中间那张进全屏。",
-                        "全屏里：左滑上一张、右滑下一张、上滑进待删、下滑退出；手里还有没确认的待删时，退出会先问你一句。",
-                        "双击放大，也可以两指捏合，放大后能拖着看细节。"
+                        "大图页是一张圆角卡片：左滑上一张、右滑下一张、上滑进待删、下滑退出；手里还有没确认的待删时，退出会先问你一句。",
+                        "双击放大，也可以两指捏合，放大后能拖着看细节。",
+                        "顶上的细线是大图页的进度条，一眼能看到筛到第几张。"
                     ])
 
                     block("五个册", [
                         "花间册：相册里所有图片，包含截图。",
                         "碎影集：只有截图，跟花间册各筛各的，互不影响。",
-                        "花影染：挑一张套滤镜——系统照片效果、我自己推的调色、你导入的 .cube LUT。",
+                        "花影染：挑一张套滤镜——黑金、徕卡经典、赛博朋克、iOS 的鲜明系列、系统照片效果，还能导入 .cube LUT；长按预览能对比原图。",
                         "流光卷：只有视频，进全屏直接自动播放。",
                         "岁华簿：分册看浏览了多少、删了多少、腾出多少空间。"
                     ])
@@ -152,8 +155,11 @@ struct AboutSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
+                        .buttonStyle(.glass)
                 }
             }
+            // 底下透一点 App 的模糊照片，玻璃卡片才有东西可折射
+            .presentationBackground(.black.opacity(0.72))
         }
     }
 
@@ -170,6 +176,6 @@ struct AboutSheet: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 18))
+        .glassEffect(.regular, in: .rect(cornerRadius: 18))
     }
 }
