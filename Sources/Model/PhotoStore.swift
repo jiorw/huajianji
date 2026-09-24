@@ -222,9 +222,9 @@ final class PhotoStore: NSObject, ObservableObject {
         didSet {
             guard oldValue != tab, tab.mediaType != nil else { return }
             pendingHistoryReset = true   // 换栏就是另一批牌，旧栏的组不算历史
-            // 等底栏玻璃的形变动画走完再去碰相册数据，否则主线程会把它卡成一顿一顿
+            // 换栏立即换牌：拖到过渡动画后半段才换的话，新栏会先闪旧牌再闪新牌
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(460))
+                try? await Task.sleep(for: .milliseconds(80))
                 self.refreshLibrary(redeal: true)
             }
         }
@@ -750,7 +750,8 @@ final class PhotoStore: NSObject, ObservableObject {
         alive.enumerateObjects { asset, _, _ in ids.insert(asset.localIdentifier) }
         deck = deck.filter { ids.contains($0.localIdentifier) }
         cursor = min(cursor, max(deck.count - 1, 0))
-        if deck.isEmpty { deal() }
+        // 剩不到三张撑不起扇形卡堆，直接补发新的一批
+        if deck.count < 3 { deal() }
     }
 
     // MARK: - 筛选
@@ -784,6 +785,22 @@ final class PhotoStore: NSObject, ObservableObject {
         }
         schedulePersist()
         refreshCounts()
+    }
+
+    /// 待删弹层里点单张反悔：把这一张从待删队列捞回来
+    func unmark(_ asset: PHAsset) {
+        let key = vkey(asset.localIdentifier)
+        guard verdicts[key] == .queued else { return }
+        verdicts.removeValue(forKey: key)
+        batchMarked.removeAll { $0 == key }
+        undoStack.removeAll { $0 == key }
+        if let kind = kindOf.removeValue(forKey: key), let current = stats.reviewed[kind] {
+            stats.reviewed[kind] = max(0, current - 1)
+        }
+        schedulePersist()
+        refreshCounts()
+        // 这张重新变回可抽，之后发牌还能再见到它；不动当前这副牌
+        invalidateCurrentPool()
     }
 
     /// 把待删队列提交给系统相册，之后仍可在「最近删除」找回 30 天
