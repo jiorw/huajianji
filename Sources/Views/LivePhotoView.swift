@@ -18,6 +18,10 @@ struct LivePhotoView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: PHLivePhotoView, context: Context) {
+        // 换了实况照片必须重新加载，否则一直显示进场那一张
+        if context.coordinator.assetID != asset.localIdentifier {
+            context.coordinator.load(asset, into: uiView)
+        }
         if playing {
             uiView.startPlayback(with: .full)
         } else {
@@ -26,9 +30,14 @@ struct LivePhotoView: UIViewRepresentable {
     }
 
     final class Coordinator {
+        var assetID = ""
         private var requestID: PHImageRequestID?
 
         func load(_ asset: PHAsset, into view: PHLivePhotoView) {
+            assetID = asset.localIdentifier
+            if let requestID {
+                PHImageManager.default().cancelImageRequest(requestID)
+            }
             let options = PHLivePhotoRequestOptions()
             options.deliveryMode = .opportunistic
             options.isNetworkAccessAllowed = true
