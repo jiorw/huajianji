@@ -40,13 +40,15 @@
    ```
 
 2. 打开仓库的 **Actions** 页，等 `构建无签名 IPA` 跑完（首次约 5–8 分钟）。
-3. 点进那次运行，在 **Artifacts** 里下载 `HuajianJi-unsigned-ipa`，解压得到 `huajianji-1.0.ipa`。
+3. 点进那次运行，在 **Artifacts** 里下载 `huajianji-<版本号>-unsigned`（比如 `huajianji-1.02-unsigned`），解压得到 `花间集-<版本号>-unsigned.ipa`。
+
+版本号只认仓库根目录的 `VERSION` 文件，每次构建成功后自动 +0.01 写回（比如 1.02 → 1.03），直接推代码就行，不用手动改版本。旧的构建产物会被自动清掉，Actions 页里永远只留最新一版。
 
 流水线失败时先看第一步「确认工具链版本」的输出：runner 已钉在 `macos-26`（默认 Xcode 26.6 + iOS 26 SDK）。如果哪天这个 label 被 GitHub 下线，换成 `macos-latest` 前先确认它的默认 Xcode ≥ 26。
 
 ## 自签安装
 
-把 `huajianji-1.0.ipa` 丢进你手机上/电脑上的自签工具（esign、各类自签助手都一样）：
+把 `花间集-<版本号>-unsigned.ipa` 丢进你手机上/电脑上的自签工具（esign、各类自签助手都一样）：
 
 1. 签名时如果提示 bundle id 冲突，改成你自己的（比如 `com.你名字.huajianji`）——改 bundle id 不影响运行。
 2. 用你自己的证书 + 描述文件签，签完装到手机。
