@@ -183,12 +183,9 @@ struct RootView: View {
 
     // MARK: - 主区域
 
-    /// 换栏的过渡：旧页快速淡出让位，新页带一点缩放柔柔进场
+    /// 换栏的过渡：干净的交叉淡入淡出，比弹簧缩放更省、也更顺
     private var pageTransition: AnyTransition {
-        .asymmetric(
-            insertion: .opacity.combined(with: .scale(scale: 0.96)),
-            removal: .opacity
-        )
+        .opacity
     }
 
     @ViewBuilder
@@ -223,7 +220,7 @@ struct RootView: View {
         // 三个图片/视频栏共用 CardStackView，不加 id 的话结构不变、过渡不会触发；
         // 用 tab 当身份，每次换栏都是旧页退场 + 新页进场
         .id(store.tab)
-        .animation(.spring(duration: 0.42, bounce: 0.18), value: store.tab)
+        .animation(.easeInOut(duration: 0.3), value: store.tab)
     }
 
     // MARK: - 底部 Dock：一条完整的玻璃胶囊 + 一块会在条目之间形变的选中玻璃
@@ -268,13 +265,13 @@ struct RootView: View {
             .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white.opacity(0.72))
             .frame(width: Self.dockItemWidth, height: Self.dockHeight - 10)
             .contentShape(Capsule())
-            // 选中块的玻璃垫在内容底下，比条目本身小一圈
+            // 选中块的玻璃垫在内容底下：换栏时靠 matchedGeometryEffect 从旧位置滑到新位置
             .background {
                 if selected {
                     RoundedRectangle(cornerRadius: 24)
                         .glassEffect(.regular.tint(.blue.opacity(0.30)).interactive(),
                                      in: RoundedRectangle(cornerRadius: 24))
-                        .glassEffectID("dock-selected", in: glass)
+                        .matchedGeometryEffect(id: "dock-selected", in: glass)
                         .padding(3)
                 }
             }
