@@ -26,6 +26,7 @@ struct PhotoViewerView: View {
     @State private var toolsVisible = true
     @State private var shareFile: ShareFile?
     @State private var pendingExit = false
+    @State private var fullscreenVideo = false
 
     /// sheet(item:) 要 Identifiable，URL 本身不是
     struct ShareFile: Identifiable {
@@ -68,8 +69,17 @@ struct PhotoViewerView: View {
                     )
                     .ignoresSafeArea()
 
-                mediaCard(size: geo.size)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if isVideo {
+                    // 视频走「去留」式全宽铺放，不做圆角卡片
+                    videoLayer(size: geo.size)
+                    if !fullscreenVideo {
+                        fullscreenPill(videoHeight: videoHeight(in: geo.size))
+                        videoTools
+                    }
+                } else {
+                    mediaCard(size: geo.size)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
 
                 // 手势层铺满整屏：手指不在卡片上也照样能翻
                 Color.clear
@@ -78,20 +88,42 @@ struct PhotoViewerView: View {
                     .simultaneousGesture(pinchGesture)
                     .onTapGesture(count: 2) { doubleTapped() }
                     .onTapGesture {
-                        withAnimation(.easeOut(duration: 0.2)) { toolsVisible.toggle() }
+                        if fullscreenVideo {
+                            exitFullscreenVideo()
+                        } else {
+                            withAnimation(.easeOut(duration: 0.2)) { toolsVisible.toggle() }
+                        }
                     }
 
-                VStack(spacing: 0) {
-                    header
-                    Spacer()
-                    footer
+                if isVideo {
+                    VStack(spacing: 0) {
+                        header
+                        Spacer()
+                        videoFooter
+                    }
+                    .zIndex(10)
+                    .opacity(toolsVisible && !fullscreenVideo ? 1 : 0)
+                    .allowsHitTesting(toolsVisible && !fullscreenVideo)
+                    .animation(.easeOut(duration: 0.2), value: toolsVisible)
+                    videoScrubber
+                        .opacity(toolsVisible && !fullscreenVideo ? 1 : 0)
+                        .animation(.easeOut(duration: 0.2), value: toolsVisible)
+                } else {
+                    VStack(spacing: 0) {
+                        header
+                        Spacer()
+                        footer
+                    }
+                    .zIndex(10)
+                    .opacity(toolsVisible && !zoomed ? 1 : 0)
+                    .allowsHitTesting(toolsVisible && !zoomed)
+                    .animation(.easeOut(duration: 0.2), value: toolsVisible)
+                    .animation(.easeOut(duration: 0.2), value: zoomed)
                 }
-                .zIndex(10)
-                .opacity(toolsVisible && !zoomed ? 1 : 0)
-                .allowsHitTesting(toolsVisible && !zoomed)
-                .animation(.easeOut(duration: 0.2), value: toolsVisible)
-                .animation(.easeOut(duration: 0.2), value: zoomed)
             }
+        }
+        .onChange(of: isVideo) { _, isV in
+            if !isV { exitFullscreenVideo() }
         }
         .onAppear {
             reloadMedia()
@@ -99,6 +131,7 @@ struct PhotoViewerView: View {
         .onChange(of: index) { _, _ in reloadMedia() }
         .onDisappear {
             playback.stop()
+            exitFullscreenVideo()
             // 退出时把首页的游标对齐到看到的这张，回首页不会又从旧的那张开始
             if let asset { store.focus(asset) }
         }
@@ -158,15 +191,7 @@ struct PhotoViewerView: View {
         let box = Self.cardSize(in: size)
         ZStack {
             if let asset {
-                if isVideo {
-                    PlayerUIView(player: playback.player)
-                        .frame(width: box.width, height: box.height)
-                        .clipShape(cardShape)
-                        .shadow(color: .black.opacity(0.45), radius: 22, y: 10)
-                        .rotationEffect(.degrees(Double(drag.width / 60)))
-                        .offset(drag)
-                        .onTapGesture { playback.toggleMute() }
-                } else if isLive {
+                if isLive {
                     LivePhotoView(asset: asset, playing: livePlaying)
                         .frame(width: box.width, height: box.height)
                         .clipShape(cardShape)
@@ -225,6 +250,122 @@ struct PhotoViewerView: View {
             w = h * pw / ph
         }
         return CGSize(width: w, height: h)
+    }
+
+    // MARK: - 视频页（去留式：全宽铺放 + 右侧工具 + 全屏观看）
+
+    @ViewBuilder
+    private func videoLayer(size: CGSize) -> some View {
+        if fullscreenVideo {
+            PlayerUIView(player: playback.player)
+                .frame(width: size.width, height: size.height)
+                .clipped()
+                .ignoresSafeArea()
+        } else {
+            PlayerUIView(player: playback.player)
+                .frame(width: size.width, height: videoHeight(in: size))
+                .clipped()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func videoHeight(in size: CGSize) -> CGFloat {
+        var h = size.width / max(videoAspect, 0.01)
+        let maxH = size.height * 0.62
+        if h > maxH { h = maxH }
+        return h
+    }
+
+    private var videoAspect: CGFloat {
+        guard let asset, asset.pixelWidth > 0 else { return 16.0 / 9.0 }
+        return CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight)
+    }
+
+    private func fullscreenPill(videoHeight: CGFloat) -> some View {
+        Button { enterFullscreenVideo() } label: {
+            Label("全屏观看", systemImage: "arrow.up.left.and.arrow.down.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 11)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle())
+        .glassEffect(.regular.tint(.black.opacity(0.35)).interactive(), in: Capsule())
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .offset(y: videoHeight / 2 + 26)
+        .allowsHitTesting(toolsVisible)
+    }
+
+    private var videoTools: some View {
+        VStack(spacing: 12) {
+            circleButton(favorited ? "heart.fill" : "heart",
+                         tint: favorited ? .red : .white) { favoriteTapped() }
+            circleButton(playback.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill") {
+                playback.toggleMute()
+            }
+            circleButton("trash", tint: .red) { commit(delete: true) }
+            circleButton("arrow.uturn.backward",
+                         tint: store.canUndo ? .white : .white.opacity(0.35)) { undoTapped() }
+                .disabled(!store.canUndo)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        .padding(.trailing, 16)
+        .padding(.bottom, 120)
+    }
+
+    private var videoFooter: some View {
+        HStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 4) {
+                if let asset {
+                    Text(store.reviewTimeText(for: asset))
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Text(TimeText.precise(asset.creationDate))
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 30)
+    }
+
+    private var videoProgress: Double {
+        playback.duration > 0 ? min(max(playback.currentTime / playback.duration, 0), 1) : 0
+    }
+
+    private var videoScrubber: some View {
+        Capsule()
+            .fill(.white.opacity(0.25))
+            .frame(height: 3)
+            .overlay(alignment: .leading) {
+                GeometryReader { g in
+                    Capsule()
+                        .fill(.white)
+                        .frame(width: max(4, g.size.width * videoProgress))
+                        .contentShape(Rectangle().inset(by: -12))
+                        .gesture(DragGesture(minimumDistance: 0).onChanged { value in
+                            let p = min(max(value.location.x / max(g.size.width, 1), 0), 1)
+                            playback.seek(to: p * playback.duration)
+                        })
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 10)
+    }
+
+    private func enterFullscreenVideo() {
+        fullscreenVideo = true
+        VideoFullscreen.setLandscape(true)
+    }
+
+    private func exitFullscreenVideo() {
+        guard fullscreenVideo else { return }
+        fullscreenVideo = false
+        VideoFullscreen.setLandscape(false)
     }
 
     // MARK: - 顶栏：返回 / 进度条 / 分享
@@ -286,6 +427,10 @@ struct PhotoViewerView: View {
     }
 
     private func doubleTapped() {
+        if isVideo {
+            playback.toggleMute()
+            return
+        }
         switch store.doubleTapAction {
         case .zoom: toggleZoom()
         case .favorite: favoriteTapped()
@@ -458,6 +603,7 @@ struct PhotoViewerView: View {
 
     private func commit(delete: Bool) {
         guard let asset else { return }
+        if fullscreenVideo { exitFullscreenVideo() }
         // 删除往上飞，下一张往右飞
         let target: CGSize = delete
             ? CGSize(width: drag.width, height: -1400)
