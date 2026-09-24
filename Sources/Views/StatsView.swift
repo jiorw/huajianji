@@ -26,8 +26,10 @@ struct StatsView: View {
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(.white)
                             .frame(width: 40, height: 40)
+                            .contentShape(Circle())
                     }
-                    .buttonStyle(.glass)
+                    .buttonStyle(PressableStyle())
+                    .glassEffect(.regular.interactive(), in: Circle())
                 }
                 .padding(.top, 8)
 
@@ -96,10 +98,11 @@ struct StatsView: View {
 
     private func memoryRow(_ group: MemoryGroup) -> some View {
         HStack(spacing: 10) {
-            Text(verbatim: "\(group.assets.count >= 60 ? "60+" : "\(group.assets.count)") 张")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 36, alignment: .leading)
+            // 显示年份，不显示张数
+            Text("\(group.year) 年")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(width: 62, alignment: .leading)
 
             ForEach(group.assets.prefix(4), id: \.localIdentifier) { asset in
                 MediaImageView(asset: asset, targetSize: CGSize(width: 56, height: 56))
