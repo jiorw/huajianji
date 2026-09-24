@@ -4,6 +4,14 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    # 这个仓库里还放着「必起闹钟」的 workflow，两条都是 on: push 的话
+    # 我每推一个文件，两个项目各跑一次 macOS runner。限定只认自己的路径。
+    paths:
+      - "Sources/**"
+      - "Support/**"
+      - "Assets.xcassets/**"
+      - "project.yml"
+      - ".github/workflows/build-ipa.yml"
 
 jobs:
   build:
