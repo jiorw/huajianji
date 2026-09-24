@@ -83,7 +83,7 @@ struct RootView: View {
         .onAppear { if store.showFPS { meter.start() } }
         .sheet(isPresented: $showSettings) {
             SettingsView(store: store)
-                .presentationBackground(.black)
+                .presentationBackground(.black.opacity(0.72))
                 .presentationDragIndicator(.hidden)
         }
         .fullScreenCover(item: $viewer) { request in
@@ -123,6 +123,7 @@ struct RootView: View {
         .padding(.top, 6)
         .padding(.horizontal, 18)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.spring(duration: 0.4, bounce: 0.18), value: store.tab)
     }
 
     /// 胶囊：⌄ + 当前口径 + 剩余张数；图片栏点开是内容类型下拉，视频栏不给筛
@@ -137,6 +138,7 @@ struct RootView: View {
             Text(store.tab == .videos ? store.tab.title
                                       : (store.contentFilter == .all ? store.tab.title : store.contentFilter.title))
                 .font(.system(size: 17, weight: .medium))
+                .contentTransition(.opacity)
             Text("\(store.deckRemaining)")
                 .font(.system(size: 12, weight: .semibold).monospacedDigit())
                 .foregroundStyle(.white)
@@ -150,6 +152,8 @@ struct RootView: View {
         .padding(.trailing, 9)
         .frame(height: 44)
         .glassEffect(.regular, in: Capsule())
+        .animation(.snappy(duration: 0.3), value: store.tab)
+        .animation(.snappy(duration: 0.3), value: store.contentFilter)
 
         if store.tab == .videos {
             label
@@ -179,28 +183,50 @@ struct RootView: View {
 
     // MARK: - 主区域
 
-    @ViewBuilder
-    private var main: some View {
-        if !store.writable {
-            PermissionView(store: store)
-        } else if store.tab == .stats {
-            StatsView(store: store,
-                      onOpenSettings: { showSettings = true },
-                      onOpenMemory: { group in
-                store.showMemory(group.assets)
-                viewer = ViewerRequest(assetID: group.assets[0].localIdentifier, index: 0)
-            })
-        } else if store.tab == .editing {
-            EditorView()
-        } else {
-            CardStackView(store: store, zoom: zoom) { cursor in
-                guard let asset = store.card(at: 0) else { return }
-                viewer = ViewerRequest(assetID: asset.localIdentifier, index: cursor)
-            }
-        }
+    /// 换栏的过渡：旧页快速淡出让位，新页带一点缩放柔柔进场
+    private var pageTransition: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.96)),
+            removal: .opacity
+        )
     }
 
-    // MARK: - 底部 Dock：一整条胶囊 + 一块会在条目之间形变的玻璃
+    @ViewBuilder
+    private var main: some View {
+        ZStack {
+            if !store.writable {
+                PermissionView(store: store)
+                    .transition(.opacity)
+            } else {
+                switch store.tab {
+                case .stats:
+                    StatsView(store: store,
+                              onOpenSettings: { showSettings = true },
+                              onOpenMemory: { group in
+                        store.showMemory(group.assets)
+                        viewer = ViewerRequest(assetID: group.assets[0].localIdentifier, index: 0)
+                    })
+                    .transition(pageTransition)
+                case .editing:
+                    EditorView()
+                        .transition(pageTransition)
+                default:
+                    CardStackView(store: store, zoom: zoom) { cursor in
+                        guard let asset = store.card(at: 0) else { return }
+                        viewer = ViewerRequest(assetID: asset.localIdentifier, index: cursor)
+                    }
+                    .transition(pageTransition)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // 三个图片/视频栏共用 CardStackView，不加 id 的话结构不变、过渡不会触发；
+        // 用 tab 当身份，每次换栏都是旧页退场 + 新页进场
+        .id(store.tab)
+        .animation(.spring(duration: 0.42, bounce: 0.18), value: store.tab)
+    }
+
+    // MARK: - 底部 Dock：一条完整的玻璃胶囊 + 一块会在条目之间形变的选中玻璃
 
     private static let dockItemWidth: CGFloat = 70
     private static let dockHeight: CGFloat = 66
@@ -213,7 +239,10 @@ struct RootView: View {
                 }
             }
             .padding(.horizontal, 6)
-            .padding(.top, 10)
+            .padding(.vertical, 5)
+            // 整条 Dock 是一块连续的玻璃，五个条目共享同一材质，
+            // 不会再出现某个条目底色和别的不一样的情况
+            .glassEffect(.regular.tint(.black.opacity(0.32)), in: Capsule())
         }
         .shadow(color: .black.opacity(0.28), radius: 12, y: 5)
     }
@@ -221,25 +250,37 @@ struct RootView: View {
     private func dockItem(_ item: RootTab) -> some View {
         let selected = store.tab == item
         return Button {
-            store.tab = item
+            guard store.tab != item else { return }
+            store.bump(.light)
+            // 选中块换了位置：旧块消失、新块出现，同一个 glassEffectID 会让
+            // 容器把玻璃从旧位置「流」到新位置，这就是 Liquid Glass 的形变动画
+            withAnimation(.spring(duration: 0.45, bounce: 0.22)) {
+                store.tab = item
+            }
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: item.symbol)
                     .font(.system(size: 25, weight: selected ? .semibold : .medium))
+                    .scaleEffect(selected ? 1.08 : 1)
                 Text(item.title)
                     .font(.system(size: 12.5, weight: .medium))
             }
-            .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white.opacity(0.7))
+            .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white.opacity(0.72))
             .frame(width: Self.dockItemWidth, height: Self.dockHeight - 10)
-            .contentShape(RoundedRectangle(cornerRadius: 30))
+            .contentShape(Capsule())
+            // 选中块的玻璃垫在内容底下，比条目本身小一圈
+            .background {
+                if selected {
+                    RoundedRectangle(cornerRadius: 24)
+                        .glassEffect(.regular.tint(.blue.opacity(0.30)).interactive(),
+                                     in: RoundedRectangle(cornerRadius: 24))
+                        .glassEffectID("dock-selected", in: glass)
+                        .padding(3)
+                }
+            }
+            .animation(.spring(duration: 0.4, bounce: 0.25), value: selected)
         }
-        .buttonStyle(.plain)
-        // 相邻的玻璃会被容器合并成一整条胶囊；选中项只是换了色调，
-        // 形变交给系统算，而不是我们自己挪一个方块过去
-        .glassEffect(selected ? .regular.tint(.blue.opacity(0.28)).interactive()
-                              : .regular.tint(.black.opacity(0.28)).interactive(),
-                     in: RoundedRectangle(cornerRadius: 30))
-        .glassEffectID("dock-\(item.rawValue)", in: glass)
+        .buttonStyle(PressableStyle(scale: 0.92))
     }
 }
 
