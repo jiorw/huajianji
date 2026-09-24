@@ -10,14 +10,52 @@ final class FeedPlayback: ObservableObject {
 
     @Published var isMuted = false
     @Published var isLoading = false
+    @Published var currentTime: Double = 0
+    @Published var duration: Double = 0
 
     private var requestID: PHImageRequestID?
+    private var timeObserver: Any?
+
+    override init() {
+        super.init()
+        // 每 0.25s 同步一次播放进度，给底部进度条用
+        timeObserver = player.addPeriodicTimeObserver(
+            forInterval: CMTime(seconds: 0.25, preferredTimescale: 600),
+            queue: .main
+        ) { [weak self] time in
+            guard let self else { return }
+            self.currentTime = CMTimeGetSeconds(time)
+            if let item = self.player.currentItem, item.duration.isNumeric {
+                self.duration = CMTimeGetSeconds(item.duration)
+            }
+        }
+    }
+
+    deinit {
+        if let timeObserver {
+            player.removeTimeObserver(timeObserver)
+        }
+    }
+
+    var isPlaying: Bool { player.rate > 0.01 }
+
+    func togglePlay() {
+        if isPlaying { player.pause() } else { player.play() }
+    }
+
+    func seek(to seconds: Double) {
+        let clamped = min(max(seconds, 0), max(duration, 0))
+        player.seek(to: CMTime(seconds: clamped, preferredTimescale: 600),
+                    toleranceBefore: .zero, toleranceAfter: .zero)
+    }
 
     func load(_ asset: PHAsset) {
         if let requestID {
             PHImageManager.default().cancelImageRequest(requestID)
         }
         isLoading = true
+        currentTime = 0
+        duration = 0
         // AirPlay 视频输出要音频会话允许外部播放
         try? AVAudioSession.sharedInstance().setCategory(
             .playback, mode: .moviePlayback, options: [.allowAirPlay])
@@ -31,7 +69,11 @@ final class FeedPlayback: ObservableObject {
                 guard let self else { return }
                 self.isLoading = false
                 guard let avAsset else { return }
-                self.player.replaceCurrentItem(with: AVPlayerItem(asset: avAsset))
+                let item = AVPlayerItem(asset: avAsset)
+                self.player.replaceCurrentItem(with: item)
+                if item.duration.isNumeric {
+                    self.duration = CMTimeGetSeconds(item.duration)
+                }
                 self.player.isMuted = self.isMuted
                 self.player.play()
             }
