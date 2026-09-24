@@ -2,7 +2,9 @@ import SwiftUI
 import Photos
 import UIKit
 
-/// 全屏放大筛选：双击/捏合缩放；左上一张、右下一张、上滑删除、下滑退出（照片视频同一套）
+/// 全屏大图页，布局对齐「去留」：圆角大卡片浮在模糊背景上，
+/// 顶栏 = 返回 / 进度条 / 分享，底栏 = 收藏 / 时间胶囊 / 撤销。
+/// 手势：左滑上一张、右滑下一张、上滑删除、下滑返回（照片视频同一套）
 struct PhotoViewerView: View {
     @ObservedObject var store: PhotoStore
     @Environment(\.dismiss) private var dismiss
@@ -21,7 +23,7 @@ struct PhotoViewerView: View {
     @State private var finished = false
     @State private var showInfo = false
     @State private var livePlaying = false
-    @State private var toolsVisible = false
+    @State private var toolsVisible = true
     @State private var shareFile: ShareFile?
     @State private var pendingExit = false
 
@@ -31,41 +33,52 @@ struct PhotoViewerView: View {
         var id: URL { url }
     }
 
+    init(store: PhotoStore, startIndex: Int) {
+        // 首帧就把 index 立到位：等 onAppear 再赋值的话，第一帧会先画 deck[0]，看着像闪错图
+        self._store = ObservedObject(wrappedValue: store)
+        self.startIndex = startIndex
+        self._index = State(initialValue: startIndex)
+    }
+
     private static let swipeThreshold: CGFloat = 96
 
     private var asset: PHAsset? { store.deck.indices.contains(index) ? store.deck[index] : nil }
-    private var nextAsset: PHAsset? { store.deck.indices.contains(index + 1) ? store.deck[index + 1] : nil }
     private var currentID: String { asset?.localIdentifier ?? "" }
     private var isVideo: Bool { asset?.mediaType == .video }
     private var isLive: Bool { asset?.mediaSubtypes.contains(.photoLive) ?? false }
     private var zoomed: Bool { zoom > 1.02 }
 
+    /// 顶栏进度条：筛到第几张了
+    private var progress: Double {
+        guard store.deck.count > 0 else { return 0 }
+        return Double(min(index + 1, store.deck.count)) / Double(store.deck.count)
+    }
+
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // 必须完全不透明：之前留了 5% 透明，首页卡片的白边和底栏图标会漏出来，
-                // 看着就像大图后面还叠着一层图标
-                Color.black.ignoresSafeArea()
+                // 背景：当前照片放大高斯模糊 + 暗色渐变，卡片浮在上面
+                BackdropView(asset: asset)
+                    .overlay(
+                        LinearGradient(colors: [.black.opacity(0.30),
+                                                .black.opacity(0.55),
+                                                .black.opacity(0.82)],
+                                       startPoint: .top, endPoint: .bottom)
+                            .allowsHitTesting(false)
+                    )
+                    .ignoresSafeArea()
 
-                mediaLayer(size: geo.size)
+                mediaCard(size: geo.size)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                // 手势层铺满整屏：手指不在卡片上也照样能翻
+                Color.clear
                     .contentShape(Rectangle())
                     .gesture(dragGesture)
+                    .simultaneousGesture(pinchGesture)
                     .onTapGesture(count: 2) { doubleTapped() }
                     .onTapGesture {
                         withAnimation(.easeOut(duration: 0.2)) { toolsVisible.toggle() }
-                    }
-                    .animation(.easeOut(duration: 0.26), value: currentID)
-                    .task(id: currentID) {
-                        // 两张都要预取：下一张会当前台，下下张会当垫底，
-                        // 只预取一张的话翻过一次之后再删就会露出没解码完的底
-                        var ahead: [PHAsset] = []
-                        for step in [1, 2] where store.deck.indices.contains(index + step) {
-                            ahead.append(store.deck[index + step])
-                        }
-                        if !ahead.isEmpty {
-                            MediaCache.prefetch(ahead, size: geo.size, mode: .fit, scale: 3)
-                        }
                     }
 
                 VStack(spacing: 0) {
@@ -73,16 +86,21 @@ struct PhotoViewerView: View {
                     Spacer()
                     footer
                 }
-
-                sideTools
+                .opacity(toolsVisible && !zoomed ? 1 : 0)
+                .allowsHitTesting(toolsVisible && !zoomed)
+                .animation(.easeOut(duration: 0.2), value: toolsVisible)
+                .animation(.easeOut(duration: 0.2), value: zoomed)
             }
         }
         .onAppear {
-            index = startIndex
             reloadMedia()
         }
         .onChange(of: index) { _, _ in reloadMedia() }
-        .onDisappear { playback.stop() }
+        .onDisappear {
+            playback.stop()
+            // 退出时把首页的游标对齐到看到的这张，回首页不会又从旧的那张开始
+            if let asset { store.focus(asset) }
+        }
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showInfo) {
             if let asset { PhotoInfoSheet(asset: asset) }
@@ -115,7 +133,6 @@ struct PhotoViewerView: View {
     }
 
     private func reloadMedia() {
-        toolsVisible = false
         zoom = 1
         lastZoom = 1
         pan = .zero
@@ -130,77 +147,101 @@ struct PhotoViewerView: View {
         }
     }
 
-    // MARK: - 画面层
+    // MARK: - 卡片
 
+    /// 圆角大卡片：比例随照片自适应，居中浮在模糊背景上
     @ViewBuilder
-    private func mediaLayer(size: CGSize) -> some View {
+    private func mediaCard(size: CGSize) -> some View {
+        let card = Self.cardSize(in: size)
         ZStack {
-            // 只在拖动/飞行的那一下才画垫底：它和前台比例不同，常驻的话会露出上下两条，
-            // 看着就像两张图重叠
-            if let next = nextAsset, !isVideo, drag != .zero {
-                MediaImageView(asset: next, targetSize: size, contentMode: .fit)
-            }
-
             if let asset {
                 if isVideo {
                     PlayerUIView(player: playback.player)
+                        .frame(width: card.width, height: card.height)
+                        .clipShape(cardShape)
+                        .shadow(color: .black.opacity(0.45), radius: 22, y: 10)
+                        .rotationEffect(.degrees(Double(drag.width / 60)))
                         .offset(drag)
+                        .onTapGesture { playback.toggleMute() }
                 } else if isLive {
                     LivePhotoView(asset: asset, playing: livePlaying)
+                        .frame(width: card.width, height: card.height)
+                        .clipShape(cardShape)
+                        .shadow(color: .black.opacity(0.45), radius: 22, y: 10)
+                        .rotationEffect(.degrees(Double(drag.width / 60)))
                         .offset(drag)
                         .onLongPressGesture(minimumDuration: 0.25, pressing: { pressing in
                             livePlaying = pressing
                         }, perform: {})
                 } else {
-                    MediaImageView(asset: asset, targetSize: size, contentMode: .fit)
+                    MediaImageView(asset: asset, targetSize: card, contentMode: .fit)
+                        // 缩放和平移发生在卡片窗口里，拖动是整张卡在飞
                         .scaleEffect(zoom)
-                        .offset(x: drag.width + pan.width, y: drag.height + pan.height)
-                        .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 46)))
-                        .simultaneousGesture(pinchGesture)
+                        .offset(x: pan.width, y: pan.height)
+                        .clipShape(cardShape)
+                        .shadow(color: .black.opacity(0.45), radius: 22, y: 10)
+                        .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 60)))
+                        .offset(drag)
                 }
             }
         }
     }
 
-    // MARK: - 顶栏
+    private var cardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 26, style: .continuous)
+    }
+
+    /// 左右各留 20pt，上下给顶栏底栏让位
+    private static func cardSize(in size: CGSize) -> CGSize {
+        CGSize(width: size.width - 40, height: size.height - 170)
+    }
+
+    // MARK: - 顶栏：返回 / 进度条 / 分享
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Button { leaveViewer() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 38, height: 38)
+        VStack(spacing: 14) {
+            HStack(spacing: 12) {
+                circleButton("chevron.left") { leaveViewer() }
+                Spacer()
+                circleButton("square.and.arrow.up") { shareTapped() }
             }
-            .buttonStyle(.glass)
-
-            Spacer(minLength: 6)
-
-            HStack(spacing: 8) {
-                Text("\(min(index + 1, store.deck.count)) / \(store.deck.count)")
-                    .font(.subheadline.weight(.semibold))
-                    .monospacedDigit()
-                Circle().fill(store.queuedInBatch.isEmpty
-                             ? Color.white.opacity(0.3) : Color.red)
-                    .frame(width: 6, height: 6)
-                Text("待删 \(store.queuedInBatch.count)")
-                    .font(.caption)
-                    .foregroundStyle(store.queuedInBatch.isEmpty
-                                     ? Color.white.opacity(0.55) : Color.red)
-            }
-            .foregroundStyle(.white)
-            .lineLimit(1)
-            .fixedSize()
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .glassEffect(.regular, in: .rect(cornerRadius: 18))
-
-            Spacer(minLength: 6)
+            // 一张张筛到哪了，一眼能看出来
+            Capsule()
+                .fill(.white.opacity(0.28))
+                .frame(height: 4)
+                .overlay(alignment: .leading) {
+                    GeometryReader { g in
+                        let width = max(12, g.size.width * progress)
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(.white).frame(width: width)
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 10, height: 10)
+                                .offset(x: width - 5)
+                        }
+                        .frame(width: g.size.width, height: g.size.height, alignment: .center)
+                    }
+                }
+                .animation(.spring(duration: 0.35, bounce: 0.2), value: index)
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
-        .opacity(zoomed ? 0 : 1)
     }
+
+    private func circleButton(_ symbol: String, tint: Color = .white,
+                              action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 46, height: 46)
+                .contentShape(Circle())
+        }
+        .buttonStyle(PressableStyle())
+        .glassEffect(.regular.tint(.black.opacity(0.35)).interactive(), in: Circle())
+    }
+
+    // MARK: - 底栏：收藏 / 时间胶囊 / 撤销
 
     private var favorited: Bool {
         guard let asset else { return false }
@@ -220,59 +261,67 @@ struct PhotoViewerView: View {
         }
     }
 
-    /// 右侧竖排的透明玻璃工具列，和原版一样四个：收藏 / 分享 / 删除 / 撤销
-    private var sideTools: some View {
-        VStack(spacing: 12) {
-            tool(favorited ? "heart.fill" : "heart",
-                 tint: favorited ? .red : .white) { favoriteTapped() }
-
-            tool("square.and.arrow.up", tint: .white.opacity(0.92)) { shareTapped() }
-
-            tool("trash", tint: .red) { commit(delete: true) }
-
-            tool("arrow.uturn.backward", tint: .white.opacity(0.92),
-                 enabled: store.canUndo) { undoTapped() }
-
+    private var footer: some View {
+        HStack(spacing: 12) {
+            circleButton(favorited ? "heart.fill" : "heart",
+                         tint: favorited ? .red : .white) { favoriteTapped() }
+            Spacer()
+            infoCapsule
+            Spacer()
             if isVideo {
-                tool(playback.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
-                     tint: .white.opacity(0.92)) { playback.toggleMute() }
+                circleButton(playback.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill") {
+                    playback.toggleMute()
+                }
             }
-
-            if toolsVisible {
-                RoutePickerButton()
-                    .frame(width: 46, height: 46)
-                    .glassEffect(.regular.tint(.black.opacity(0.42)).interactive(), in: Circle())
-                    .transition(.scale(scale: 0.7).combined(with: .opacity))
-            }
+            circleButton("arrow.uturn.backward",
+                         tint: store.canUndo ? .white : .white.opacity(0.35)) { undoTapped() }
+                .disabled(!store.canUndo)
         }
-        .animation(.spring(duration: 0.35, bounce: 0.25), value: toolsVisible)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-        .padding(.trailing, 16)
-        .padding(.bottom, 200)
-        .opacity(zoomed ? 0 : 1)
-        .allowsHitTesting(!zoomed)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 18)
     }
 
-    private func tool(_ symbol: String, tint: Color, enabled: Bool = true,
-                      action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(tint)
-                .frame(width: 46, height: 46)
-                .contentShape(Circle())
+    /// 中间的信息胶囊：拍摄时间 + 进度/待删，点开详情（对应原版那个 ⓘ）
+    private var infoCapsule: some View {
+        Button { showInfo = true } label: {
+            HStack(spacing: 12) {
+                VStack(spacing: 3) {
+                    Text(asset.map { store.reviewTimeText(for: $0) } ?? "")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    HStack(spacing: 5) {
+                        Text("\(min(index + 1, store.deck.count)) / \(store.deck.count)")
+                            .contentTransition(.numericText(value: Double(min(index + 1, store.deck.count))))
+                        if !store.queuedInBatch.isEmpty {
+                            Text("待删 \(store.queuedInBatch.count)")
+                                .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.42))
+                        }
+                    }
+                    .font(.caption.weight(.medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.6))
+                }
+                Image(systemName: "info.circle")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+            .padding(.leading, 18)
+            .padding(.trailing, 14)
+            .frame(height: 54)
+            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
-        .glassEffect(.regular.tint(.black.opacity(0.42)).interactive(), in: Circle())
-        .opacity(enabled ? 1 : 0.35)
-        .disabled(!enabled)
+        .buttonStyle(PressableStyle())
+        .glassEffect(.regular.tint(.black.opacity(0.35)).interactive(), in: Capsule())
+        .animation(.snappy(duration: 0.3), value: index)
     }
 
     private func undoTapped() {
         guard store.canUndo else { return }
         store.undoLast()
         store.bump(.light)
-        if index > 0 { index -= 1 }
+        // undoLast 会把游标摆回被撤销那张的位置，直接跟过去
+        index = min(store.cursor, max(store.deck.count - 1, 0))
     }
 
     /// 分享走原始文件：先把 PHAssetResource 落到临时目录再交给系统面板
@@ -294,46 +343,6 @@ struct PhotoViewerView: View {
                 }
             }
         }
-    }
-
-    // MARK: - 底栏
-
-    private var footer: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let asset {
-                // 左下角时间行，点一下才展开详情（对应原版那个 ⌄）
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(store.reviewTimeText(for: asset))
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(.white)
-                    HStack(spacing: 5) {
-                        Text(store.timeFormat == .relative
-                             ? TimeText.precise(asset.creationDate)
-                             : TimeText.since(asset.creationDate))
-                        Image(systemName: "chevron.up")
-                            .font(.system(size: 10, weight: .bold))
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.6))
-                }
-                .padding(.trailing, 14)
-                .contentShape(Rectangle())
-                .onTapGesture { showInfo = true }
-            }
-            HStack {
-                Label(isLive ? "长按 播放实况" : "左滑 上一张",
-                      systemImage: isLive ? "livephoto" : "arrow.left")
-                Spacer()
-                Label("右滑 下一张 · 上滑 删除 · 下滑 返回", systemImage: "arrow.up.arrow.down")
-            }
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.white.opacity(0.5))
-        }
-        .padding(.horizontal, 34)
-        .padding(.bottom, 26)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .opacity(zoomed ? 0 : 1)
-        .animation(.easeOut(duration: 0.2), value: zoomed)
     }
 
     // MARK: - 手势
@@ -423,10 +432,13 @@ struct PhotoViewerView: View {
         if delete { store.bump(.heavy) }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(220))
+            // 等飞行动画收尾后再同一个事务里换人：drag 归零 + index 前进同时生效，
+            // 中间不会露出旧图或空白；下一张已经预取过，切过去就是即时的
             store.mark(delete ? .queued : .kept, asset: asset)
             drag = .zero
             if index + 1 < store.deck.count {
                 index += 1
+                if store.deck.indices.contains(index) { store.focus(store.deck[index]) }
             } else {
                 finished = true
             }
