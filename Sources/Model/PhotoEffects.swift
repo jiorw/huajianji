@@ -126,6 +126,211 @@ enum ColorGrade: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - 网红调色 + iOS 照片效果同款
+
+/// 滤镜条最前排的一组：黑金 / 徕卡经典 / 赛博朋克，加上 iOS 相册自带的
+/// 「鲜明 / 反差」家族。全部用 Core Image 原语现搭，不依赖第三方 LUT
+enum PhotoStyle: String, CaseIterable, Identifiable {
+    case blackGold
+    case leicaClassic
+    case cyberpunk
+    case vivid
+    case vividWarm
+    case vividCool
+    case dramatic
+    case dramaticWarm
+    case dramaticCool
+    case warmTone
+    case coolTone
+    case sunset
+    case hongKong
+    case filmGreen
+    case cream
+    case insCold
+    case dusk
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .blackGold: "黑金"
+        case .leicaClassic: "徕卡经典"
+        case .cyberpunk: "赛博朋克"
+        case .vivid: "鲜明"
+        case .vividWarm: "鲜暖色"
+        case .vividCool: "鲜冷色"
+        case .dramatic: "反差色"
+        case .dramaticWarm: "反差暖色"
+        case .dramaticCool: "反差冷色"
+        case .warmTone: "暖色调"
+        case .coolTone: "冷色调"
+        case .sunset: "日落金"
+        case .hongKong: "港风"
+        case .filmGreen: "胶片绿"
+        case .cream: "奶油感"
+        case .insCold: "冷白"
+        case .dusk: "蓝调"
+        }
+    }
+
+    func filtered(_ input: CIImage) -> CIImage {
+        switch self {
+        case .blackGold:
+            // 灰度当遮罩：暗部压到纯黑，亮部镀金，中间调落在金色坡道上
+            let gray = controls(input, contrast: 1.32, saturation: 0, brightness: -0.03)
+            let gold = flat(CIColor(red: 1.0, green: 0.80, blue: 0.45), extent: input.extent)
+            let black = flat(CIColor(red: 0.03, green: 0.02, blue: 0.01), extent: input.extent)
+            return controls(blend(light: gold, dark: black, mask: gray),
+                            contrast: 1.10, saturation: 1.05, brightness: 0)
+        case .leicaClassic:
+            // 德味：红中间调浓郁偏暖、蓝被压一点、黑位微抬
+            return matrix(input,
+                          r: (1.10, 0.04, 0.00, 0.010),
+                          g: (0.01, 1.04, 0.00, 0.004),
+                          b: (0.00, 0.02, 0.92, 0.006),
+                          contrast: 1.20, saturation: 1.22)
+        case .cyberpunk:
+            // 分离色调：亮部染洋红、暗部染青，再把饱和度顶上去
+            let soft = controls(input, contrast: 0.55, saturation: 0, brightness: 0.02)
+            let magenta = flat(CIColor(red: 0.98, green: 0.25, blue: 0.85), extent: input.extent)
+            let cyan = flat(CIColor(red: 0.10, green: 0.85, blue: 0.95), extent: input.extent)
+            let highlights = blend(light: magenta, dark: input, mask: scaled(soft, 0.42))
+            let shadows = blend(light: cyan, dark: highlights, mask: scaled(invert(soft), 0.42))
+            return controls(shadows, contrast: 1.15, saturation: 1.50, brightness: 0)
+        case .vivid:
+            return controls(input, contrast: 1.08, saturation: 1.30, brightness: 0.01)
+        case .vividWarm:
+            return temperature(controls(input, contrast: 1.08, saturation: 1.28, brightness: 0.01),
+                               kelvin: 1000, tint: 6)
+        case .vividCool:
+            return temperature(controls(input, contrast: 1.08, saturation: 1.28, brightness: 0.01),
+                               kelvin: -1000, tint: -6)
+        case .dramatic:
+            return controls(input, contrast: 1.42, saturation: 0.88, brightness: -0.025)
+        case .dramaticWarm:
+            return temperature(controls(input, contrast: 1.42, saturation: 0.90, brightness: -0.025),
+                               kelvin: 900, tint: 5)
+        case .dramaticCool:
+            return temperature(controls(input, contrast: 1.42, saturation: 0.90, brightness: -0.025),
+                               kelvin: -900, tint: -5)
+        case .warmTone:
+            return temperature(controls(input, contrast: 1.05, saturation: 1.12, brightness: 0.012),
+                               kelvin: 1200, tint: 8)
+        case .coolTone:
+            return temperature(controls(input, contrast: 1.06, saturation: 1.10, brightness: 0.008),
+                               kelvin: -1200, tint: -8)
+        case .sunset:
+            // 黄昏金：橙红提亮、蓝被收走，适合逆光和天色
+            return temperature(matrix(input,
+                                      r: (1.16, 0.02, 0.00, 0.015),
+                                      g: (0.00, 1.02, 0.00, 0.005),
+                                      b: (0.00, 0.00, 0.78, 0.010),
+                                      contrast: 1.08, saturation: 1.15),
+                               kelvin: 500, tint: 4)
+        case .hongKong:
+            // 港风：掉色的绿黄调、黑位抬起，旧海报的味道
+            return matrix(input,
+                          r: (0.94, 0.06, 0.00, 0.020),
+                          g: (0.00, 1.02, 0.00, 0.015),
+                          b: (0.00, 0.04, 0.82, 0.020),
+                          contrast: 0.94, saturation: 0.78)
+        case .filmGreen:
+            // 富士胶片感：绿味暗部、中等对比、微降饱和
+            return matrix(input,
+                          r: (0.98, 0.00, 0.02, 0.008),
+                          g: (0.02, 1.06, 0.02, 0.008),
+                          b: (0.00, 0.03, 0.94, 0.012),
+                          contrast: 1.06, saturation: 0.92)
+        case .cream:
+            // 奶油感：整体提亮、低反差、一点点粉调
+            return matrix(input,
+                          r: (1.06, 0.02, 0.00, 0.035),
+                          g: (0.00, 1.00, 0.00, 0.030),
+                          b: (0.02, 0.00, 0.98, 0.032),
+                          contrast: 0.88, saturation: 0.82)
+        case .insCold:
+            // 冷白：干净提亮、去饱和、微冷，ins 风
+            return temperature(controls(input, contrast: 1.04, saturation: 0.78, brightness: 0.045),
+                               kelvin: -900, tint: -5)
+        case .dusk:
+            // 蓝调时刻：暗部沉进蓝里，亮部的灯光还留着暖
+            let soft = controls(input, contrast: 0.55, saturation: 0, brightness: 0)
+            let blue = flat(CIColor(red: 0.12, green: 0.28, blue: 0.55), extent: input.extent)
+            let shadowed = blend(light: input, dark: blue, mask: scaled(soft, 0.55))
+            return temperature(controls(shadowed, contrast: 1.18, saturation: 1.12, brightness: 0),
+                               kelvin: -600, tint: -4)
+        }
+    }
+
+    // MARK: 搭配用的小工具
+
+    private func flat(_ color: CIColor, extent: CGRect) -> CIImage {
+        CIImage(color: color).cropped(to: extent)
+    }
+
+    /// CIBlendWithMask：mask 越亮取 light，越暗取 dark
+    private func blend(light: CIImage, dark: CIImage, mask: CIImage) -> CIImage {
+        guard let filter = CIFilter(name: "CIBlendWithMask") else { return dark }
+        filter.setValue(light, forKey: "inputImage")
+        filter.setValue(dark, forKey: "inputBackgroundImage")
+        filter.setValue(mask, forKey: "inputMaskImage")
+        return filter.outputImage ?? dark
+    }
+
+    /// 把遮罩明度整体压到 amount，控制染色浓度
+    private func scaled(_ image: CIImage, _ amount: CGFloat) -> CIImage {
+        guard let filter = CIFilter(name: "CIColorMatrix") else { return image }
+        filter.setValue(image, forKey: "inputImage")
+        filter.setValue(CIVector(x: amount, y: 0, z: 0, w: 0), forKey: "inputRVector")
+        filter.setValue(CIVector(x: 0, y: amount, z: 0, w: 0), forKey: "inputGVector")
+        filter.setValue(CIVector(x: 0, y: 0, z: amount, w: 0), forKey: "inputBVector")
+        filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+        filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputBiasVector")
+        return filter.outputImage ?? image
+    }
+
+    private func invert(_ image: CIImage) -> CIImage {
+        guard let filter = CIFilter(name: "CIColorInvert") else { return image }
+        filter.setValue(image, forKey: "inputImage")
+        return filter.outputImage ?? image
+    }
+
+    /// 色温偏移：kelvin 正=偏暖，负=偏冷
+    private func temperature(_ input: CIImage, kelvin: Double, tint: Double = 0) -> CIImage {
+        guard let filter = CIFilter(name: "CITemperatureAndTint") else { return input }
+        filter.setValue(input, forKey: "inputImage")
+        filter.setValue(CIVector(x: 6500, y: 0), forKey: "inputNeutral")
+        filter.setValue(CIVector(x: 6500 + kelvin, y: tint), forKey: "inputTargetNeutral")
+        return filter.outputImage ?? input
+    }
+
+    private func matrix(_ input: CIImage,
+                        r: (CGFloat, CGFloat, CGFloat, CGFloat),
+                        g: (CGFloat, CGFloat, CGFloat, CGFloat),
+                        b: (CGFloat, CGFloat, CGFloat, CGFloat),
+                        contrast: Double, saturation: Double) -> CIImage {
+        guard let filter = CIFilter(name: "CIColorMatrix") else { return input }
+        filter.setValue(input, forKey: "inputImage")
+        filter.setValue(CIVector(x: r.0, y: r.1, z: r.2, w: r.3), forKey: "inputRVector")
+        filter.setValue(CIVector(x: g.0, y: g.1, z: g.2, w: g.3), forKey: "inputGVector")
+        filter.setValue(CIVector(x: b.0, y: b.1, z: b.2, w: b.3), forKey: "inputBVector")
+        filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+        filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputBiasVector")
+        guard let tinted = filter.outputImage else { return input }
+        return controls(tinted, contrast: contrast, saturation: saturation, brightness: 0)
+    }
+
+    private func controls(_ input: CIImage, contrast: Double, saturation: Double,
+                          brightness: Double) -> CIImage {
+        guard let filter = CIFilter(name: "CIColorControls") else { return input }
+        filter.setValue(input, forKey: "inputImage")
+        filter.setValue(contrast, forKey: "inputContrast")
+        filter.setValue(saturation, forKey: "inputSaturation")
+        filter.setValue(brightness, forKey: "inputBrightness")
+        return filter.outputImage ?? input
+    }
+}
+
 // MARK: - .cube LUT
 
 struct CubeLUT: Identifiable, Hashable {
@@ -180,6 +385,7 @@ enum CubeParser {
 
 enum EditorChoice: Identifiable, Hashable {
     case original
+    case style(PhotoStyle)
     case builtin(SystemFilter)
     case grade(ColorGrade)
     case lut(CubeLUT)
@@ -187,6 +393,7 @@ enum EditorChoice: Identifiable, Hashable {
     var id: String {
         switch self {
         case .original: "original"
+        case .style(let s): "style-\(s.rawValue)"
         case .builtin(let f): "builtin-\(f.rawValue)"
         case .grade(let g): "grade-\(g.rawValue)"
         case .lut(let l): "lut-\(l.name)"
@@ -196,6 +403,7 @@ enum EditorChoice: Identifiable, Hashable {
     var title: String {
         switch self {
         case .original: "原图"
+        case .style(let s): s.title
         case .builtin(let f): f.title
         case .grade(let g): g.title
         case .lut(let l): l.name
@@ -207,10 +415,12 @@ enum EditorChoice: Identifiable, Hashable {
         return false
     }
 
+    /// 滤镜条顺序：网红调色 + 胶片系打头阵，通用调色随后，系统效果垫底
     static func all(luts: [CubeLUT]) -> [EditorChoice] {
         [.original]
-            + SystemFilter.allCases.map { EditorChoice.builtin($0) }
+            + PhotoStyle.allCases.map { EditorChoice.style($0) }
             + ColorGrade.allCases.map { EditorChoice.grade($0) }
+            + SystemFilter.allCases.map { EditorChoice.builtin($0) }
             + luts.map { EditorChoice.lut($0) }
     }
 }
@@ -237,6 +447,8 @@ enum PhotoEffectEngine {
         switch choice {
         case .original:
             return image
+        case .style(let style):
+            effect = style.filtered(input)
         case .builtin(let filter):
             effect = filter.filtered(input)
         case .grade(let grade):
