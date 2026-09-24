@@ -223,37 +223,77 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.3), value: store.tab)
     }
 
-    // MARK: - 底部 Dock：一条完整的玻璃胶囊 + 一块会在条目之间形变的选中玻璃
+    // MARK: - 底部 Dock：一条完整的玻璃胶囊 + 一块会跟手滑动的选中玻璃
 
     private static let dockItemWidth: CGFloat = 70
     private static let dockHeight: CGFloat = 66
 
+    /// 拖动中的玻璃块连续位置（栏目序号浮点）；nil = 停在选中栏目
+    @State private var dragIndex: CGFloat?
+
+    private var selectedDockIndex: CGFloat {
+        CGFloat(RootTab.allCases.firstIndex(of: store.tab) ?? 0)
+    }
+
+    private var blobIndex: CGFloat { dragIndex ?? selectedDockIndex }
+
     private var dock: some View {
         GlassEffectContainer(spacing: 0) {
-            HStack(spacing: 0) {
-                ForEach(RootTab.allCases) { item in
-                    dockItem(item)
+            ZStack(alignment: .leading) {
+                // 选中玻璃块：拖动时跟手，松手弹回最近栏目
+                RoundedRectangle(cornerRadius: 24)
+                    .glassEffect(.regular.tint(.blue.opacity(0.30)).interactive(),
+                                 in: RoundedRectangle(cornerRadius: 24))
+                    .frame(width: Self.dockItemWidth - 6, height: Self.dockHeight - 16)
+                    .offset(x: 9 + blobIndex * Self.dockItemWidth)
+                    .animation(dragIndex == nil ? .spring(duration: 0.4, bounce: 0.25) : nil,
+                               value: blobIndex)
+
+                HStack(spacing: 0) {
+                    ForEach(RootTab.allCases) { item in
+                        dockItem(item)
+                    }
                 }
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 5)
-            // 整条 Dock 是一块连续的玻璃，五个条目共享同一材质，
-            // 不会再出现某个条目底色和别的不一样的情况
+            // 整条 Dock 是一块连续的玻璃，五个条目共享同一材质
             .glassEffect(.regular.tint(.black.opacity(0.32)), in: Capsule())
+            .contentShape(Capsule())
+            .gesture(dockDrag)
         }
         .shadow(color: .black.opacity(0.28), radius: 12, y: 5)
+    }
+
+    /// 按住玻璃条左右滑，滑到哪个栏目松手就切哪个
+    private var dockDrag: some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .local)
+            .onChanged { value in
+                let idx = (value.location.x - 6 - Self.dockItemWidth / 2) / Self.dockItemWidth
+                dragIndex = min(max(idx, 0), CGFloat(RootTab.allCases.count - 1))
+            }
+            .onEnded { value in
+                let idx = (value.location.x - 6 - Self.dockItemWidth / 2) / Self.dockItemWidth
+                let nearest = Int(round(min(max(idx, 0), CGFloat(RootTab.allCases.count - 1))))
+                dragIndex = nil
+                if let tab = RootTab(rawValue: nearest) {
+                    selectTab(tab)
+                }
+            }
+    }
+
+    private func selectTab(_ item: RootTab) {
+        guard store.tab != item else { return }
+        store.bump(.light)
+        withAnimation(.spring(duration: 0.45, bounce: 0.22)) {
+            store.tab = item
+        }
     }
 
     private func dockItem(_ item: RootTab) -> some View {
         let selected = store.tab == item
         return Button {
-            guard store.tab != item else { return }
-            store.bump(.light)
-            // 选中块换了位置：旧块消失、新块出现，同一个 glassEffectID 会让
-            // 容器把玻璃从旧位置「流」到新位置，这就是 Liquid Glass 的形变动画
-            withAnimation(.spring(duration: 0.45, bounce: 0.22)) {
-                store.tab = item
-            }
+            selectTab(item)
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: item.symbol)
@@ -265,16 +305,6 @@ struct RootView: View {
             .foregroundStyle(selected ? Color(red: 0.44, green: 0.66, blue: 1.0) : .white.opacity(0.72))
             .frame(width: Self.dockItemWidth, height: Self.dockHeight - 10)
             .contentShape(Capsule())
-            // 选中块的玻璃垫在内容底下：换栏时靠 matchedGeometryEffect 从旧位置滑到新位置
-            .background {
-                if selected {
-                    RoundedRectangle(cornerRadius: 24)
-                        .glassEffect(.regular.tint(.blue.opacity(0.30)).interactive(),
-                                     in: RoundedRectangle(cornerRadius: 24))
-                        .matchedGeometryEffect(id: "dock-selected", in: glass)
-                        .padding(3)
-                }
-            }
             .animation(.spring(duration: 0.4, bounce: 0.25), value: selected)
         }
         .buttonStyle(PressableStyle(scale: 0.92))
