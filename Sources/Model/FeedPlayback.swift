@@ -16,8 +16,7 @@ final class FeedPlayback: ObservableObject {
     private var requestID: PHImageRequestID?
     private var timeObserver: Any?
 
-    override init() {
-        super.init()
+    init() {
         // 每 0.25s 同步一次播放进度，给底部进度条用
         timeObserver = player.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 0.25, preferredTimescale: 600),
