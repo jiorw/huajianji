@@ -41,11 +41,20 @@ struct BatchResultSheet: View {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
                         ForEach(queued, id: \.localIdentifier) { asset in
-                            MediaImageView(asset: asset, targetSize: CGSize(width: 110, height: 110))
-                                .frame(height: 110)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                                .overlay(RoundedRectangle(cornerRadius: 14)
-                                    .strokeBorder(.white.opacity(0.18), lineWidth: 1))
+                            Button {
+                                store.bump(.light)
+                                withAnimation(.snappy(duration: 0.25)) {
+                                    store.unmark(asset)
+                                    reload()
+                                }
+                            } label: {
+                                MediaImageView(asset: asset, targetSize: CGSize(width: 110, height: 110))
+                                    .frame(height: 110)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                    .overlay(RoundedRectangle(cornerRadius: 14)
+                                        .strokeBorder(.white.opacity(0.18), lineWidth: 1))
+                            }
+                            .buttonStyle(PressableStyle(scale: 0.92))
                         }
                     }
                     .padding(.horizontal, 18)
@@ -145,24 +154,52 @@ struct PendingDeleteSheet: View {
             }
             .padding(.horizontal, 18)
             .padding(.top, 22)
-            .padding(.bottom, 18)
+            .padding(.bottom, 10)
 
-            ScrollView(showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)],
-                          alignment: .leading, spacing: 12) {
-                    ForEach(queued, id: \.localIdentifier) { asset in
-                        MediaImageView(asset: asset, targetSize: CGSize(width: 110, height: 110))
-                            .frame(height: 112)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                            .overlay(alignment: .bottomTrailing) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 24))
-                                    .foregroundStyle(.green, .black.opacity(0.55))
-                                    .padding(7)
-                            }
-                    }
+            Text("点一张缩略图可以反悔，它会回到牌堆里")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 10)
+
+            if queued.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.green)
+                    Text("都反悔完了，没有要删的了")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 18)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView(showsIndicators: false) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)],
+                              alignment: .leading, spacing: 12) {
+                        ForEach(queued, id: \.localIdentifier) { asset in
+                            Button {
+                                store.bump(.light)
+                                withAnimation(.snappy(duration: 0.25)) {
+                                    store.unmark(asset)
+                                    reload()
+                                }
+                            } label: {
+                                MediaImageView(asset: asset, targetSize: CGSize(width: 110, height: 110))
+                                    .frame(height: 112)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                    .overlay(alignment: .bottomTrailing) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.system(size: 24))
+                                            .foregroundStyle(.green, .black.opacity(0.55))
+                                            .padding(7)
+                                    }
+                            }
+                            .buttonStyle(PressableStyle(scale: 0.92))
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                }
+                .animation(.snappy(duration: 0.25), value: queued.count)
             }
 
             HStack(spacing: 14) {
