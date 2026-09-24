@@ -92,7 +92,8 @@ struct SettingsView: View {
             .padding(.top, 8)
             .padding(.bottom, 30)
         }
-        .background(Color.black.ignoresSafeArea())
+            // 半透明黑：能透出首页的模糊照片，玻璃卡片才有东西可折射
+            .background(Color.black.opacity(0.35).ignoresSafeArea())
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showFeedback) { FeedbackSheet() }
         .sheet(isPresented: $showAbout) { AboutSheet() }
@@ -124,9 +125,8 @@ struct SettingsView: View {
                     .foregroundStyle(.white)
                     .frame(width: 34, height: 34)
             }
-            .buttonStyle(.plain)
-            .background(Color(white: 0.16), in: Circle())
-            .overlay(Circle().strokeBorder(.white.opacity(0.08), lineWidth: 1))
+            .buttonStyle(PressableStyle())
+            .glassEffect(.regular, in: Circle())
         }
         .padding(.top, 14)
         .padding(.bottom, 6)
@@ -166,10 +166,7 @@ struct SettingsView: View {
 
         var body: some View {
             VStack(spacing: 0) { content }
-                .background(Color(red: 0.082, green: 0.082, blue: 0.09),
-                            in: RoundedRectangle(cornerRadius: 26))
-                .overlay(RoundedRectangle(cornerRadius: 26)
-                    .strokeBorder(.white.opacity(0.045), lineWidth: 1))
+                .glassEffect(.regular, in: .rect(cornerRadius: 26))
         }
     }
 
