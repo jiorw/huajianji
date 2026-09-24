@@ -170,7 +170,7 @@ struct EditorView: View {
             .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 22))
 
             Button {
-                save(source)
+                if let img = source { save(img) }
             } label: {
                 actionLabel(choice.isOriginal ? "先选个风格" : "存为新照片",
                             systemImage: "square.and.arrow.down")
