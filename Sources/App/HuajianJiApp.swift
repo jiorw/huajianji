@@ -5,10 +5,32 @@ import AVKit
 
 @main
 struct HuajianJiApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+
     var body: some Scene {
         WindowGroup {
             RootView()
         }
+    }
+}
+
+/// 默认锁竖屏；大图页「全屏观看」时切横屏，退出再切回来
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    static var orientationLock: UIInterfaceOrientationMask = .portrait
+
+    func application(_ application: UIApplication,
+                     supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        AppDelegate.orientationLock
+    }
+}
+
+enum VideoFullscreen {
+    static func setLandscape(_ on: Bool) {
+        AppDelegate.orientationLock = on ? .landscapeRight : .portrait
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene }).first else { return }
+        scene.requestGeometryUpdate(.iOS(interfaceOrientations: on ? .landscapeRight : .portrait))
+        scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
     }
 }
 
