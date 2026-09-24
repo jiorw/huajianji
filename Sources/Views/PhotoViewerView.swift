@@ -86,6 +86,7 @@ struct PhotoViewerView: View {
                     Spacer()
                     footer
                 }
+                .zIndex(10)
                 .opacity(toolsVisible && !zoomed ? 1 : 0)
                 .allowsHitTesting(toolsVisible && !zoomed)
                 .animation(.easeOut(duration: 0.2), value: toolsVisible)
@@ -120,7 +121,8 @@ struct PhotoViewerView: View {
             })
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.hidden)
-            .presentationBackground(.black)
+            // 毛玻璃：背后的大图能透出模糊的光影
+            .presentationBackground(.thinMaterial)
         }
         .sheet(isPresented: $finished) {
             BatchResultSheet(store: store) {
@@ -129,6 +131,7 @@ struct PhotoViewerView: View {
             }
             .presentationDetents([.large])
             .presentationDragIndicator(.hidden)
+            .presentationBackground(.thinMaterial)
         }
     }
 
@@ -149,15 +152,15 @@ struct PhotoViewerView: View {
 
     // MARK: - 卡片
 
-    /// 圆角大卡片：比例随照片自适应，居中浮在模糊背景上
+    /// 圆角大卡片：按照片真实比例撑满可用区域（四周固定留白），居中浮在模糊背景上
     @ViewBuilder
     private func mediaCard(size: CGSize) -> some View {
-        let card = Self.cardSize(in: size)
+        let box = Self.cardSize(in: size)
         ZStack {
             if let asset {
                 if isVideo {
                     PlayerUIView(player: playback.player)
-                        .frame(width: card.width, height: card.height)
+                        .frame(width: box.width, height: box.height)
                         .clipShape(cardShape)
                         .shadow(color: .black.opacity(0.45), radius: 22, y: 10)
                         .rotationEffect(.degrees(Double(drag.width / 60)))
@@ -165,21 +168,36 @@ struct PhotoViewerView: View {
                         .onTapGesture { playback.toggleMute() }
                 } else if isLive {
                     LivePhotoView(asset: asset, playing: livePlaying)
-                        .frame(width: card.width, height: card.height)
+                        .frame(width: box.width, height: box.height)
                         .clipShape(cardShape)
                         .shadow(color: .black.opacity(0.45), radius: 22, y: 10)
+                        .overlay(alignment: .topTrailing) {
+                            // 提示这是实况照片：长按播放
+                            Text("实况")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 11)
+                                .padding(.vertical, 6)
+                                .glassEffect(.regular.tint(.black.opacity(0.45)), in: Capsule())
+                                .padding(14)
+                                .opacity(livePlaying ? 0 : 1)
+                        }
                         .rotationEffect(.degrees(Double(drag.width / 60)))
                         .offset(drag)
                         .onLongPressGesture(minimumDuration: 0.25, pressing: { pressing in
+                            if pressing { store.bump(.light) }
                             livePlaying = pressing
                         }, perform: {})
                 } else {
-                    MediaImageView(asset: asset, targetSize: card, contentMode: .fit)
-                        // 缩放和平移发生在卡片窗口里，拖动是整张卡在飞
-                        .scaleEffect(zoom)
-                        .offset(x: pan.width, y: pan.height)
+                    // 必须给出精确尺寸：只给 targetSize 的话视图会吃满整个提案，
+                    // 卡片就会溢出屏幕、把底栏全盖住
+                    let fit = Self.fittedSize(asset: asset, in: box)
+                    MediaImageView(asset: asset, targetSize: fit, contentMode: .fit)
+                        .frame(width: fit.width, height: fit.height)
                         .clipShape(cardShape)
                         .shadow(color: .black.opacity(0.45), radius: 22, y: 10)
+                        .scaleEffect(zoom)
+                        .offset(x: pan.width, y: pan.height)
                         .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 60)))
                         .offset(drag)
                 }
@@ -196,6 +214,19 @@ struct PhotoViewerView: View {
         CGSize(width: size.width - 40, height: size.height - 170)
     }
 
+    /// 按照片像素比例把卡片缩放进可用区域，卡片边界 = 照片边界
+    private static func fittedSize(asset: PHAsset, in box: CGSize) -> CGSize {
+        let pw = CGFloat(max(asset.pixelWidth, 1))
+        let ph = CGFloat(max(asset.pixelHeight, 1))
+        var w = box.width
+        var h = w * ph / pw
+        if h > box.height {
+            h = box.height
+            w = h * pw / ph
+        }
+        return CGSize(width: w, height: h)
+    }
+
     // MARK: - 顶栏：返回 / 进度条 / 分享
 
     private var header: some View {
@@ -205,19 +236,19 @@ struct PhotoViewerView: View {
                 Spacer()
                 circleButton("square.and.arrow.up") { shareTapped() }
             }
-            // 一张张筛到哪了，一眼能看出来
+            // 一张张筛到哪了，一眼能看出来（细线，别抢戏）
             Capsule()
-                .fill(.white.opacity(0.28))
-                .frame(height: 4)
+                .fill(.white.opacity(0.18))
+                .frame(height: 3)
                 .overlay(alignment: .leading) {
                     GeometryReader { g in
-                        let width = max(12, g.size.width * progress)
+                        let width = max(10, g.size.width * progress)
                         ZStack(alignment: .leading) {
-                            Capsule().fill(.white).frame(width: width)
+                            Capsule().fill(.white.opacity(0.9)).frame(width: width)
                             Circle()
                                 .fill(.white)
-                                .frame(width: 10, height: 10)
-                                .offset(x: width - 5)
+                                .frame(width: 8, height: 8)
+                                .offset(x: width - 4)
                         }
                         .frame(width: g.size.width, height: g.size.height, alignment: .center)
                     }
@@ -290,6 +321,7 @@ struct PhotoViewerView: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     HStack(spacing: 5) {
                         Text("\(min(index + 1, store.deck.count)) / \(store.deck.count)")
                             .contentTransition(.numericText(value: Double(min(index + 1, store.deck.count))))
@@ -301,6 +333,7 @@ struct PhotoViewerView: View {
                     .font(.caption.weight(.medium))
                     .monospacedDigit()
                     .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(1)
                 }
                 Image(systemName: "info.circle")
                     .font(.system(size: 15, weight: .medium))
@@ -309,6 +342,7 @@ struct PhotoViewerView: View {
             .padding(.leading, 18)
             .padding(.trailing, 14)
             .frame(height: 54)
+            .frame(maxWidth: 300)
             .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())
@@ -428,10 +462,12 @@ struct PhotoViewerView: View {
         let target: CGSize = delete
             ? CGSize(width: drag.width, height: -1400)
             : CGSize(width: 900, height: drag.height)
-        withAnimation(.easeOut(duration: 0.22)) { drag = target }
+        withAnimation(.easeOut(duration: 0.2)) { drag = target }
         if delete { store.bump(.heavy) }
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(220))
+            // 飞行动画 0.2s，这里多留 60ms 余量，等动画彻底收尾再原子换图，
+            // 否则旧图会有一帧弹回画面中央（上滑闪烁的元凶）
+            try? await Task.sleep(for: .milliseconds(260))
             // 等飞行动画收尾后再同一个事务里换人：drag 归零 + index 前进同时生效，
             // 中间不会露出旧图或空白；下一张已经预取过，切过去就是即时的
             store.mark(delete ? .queued : .kept, asset: asset)
