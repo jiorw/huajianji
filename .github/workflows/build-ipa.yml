@@ -4,14 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    # 这个仓库里还放着「必起闹钟」的 workflow，两条都是 on: push 的话
-    # 我每推一个文件，两个项目各跑一次 macOS runner。限定只认自己的路径。
-    paths:
-      - "Sources/**"
-      - "Support/**"
-      - "Assets.xcassets/**"
-      - "project.yml"
-      - ".github/workflows/build-ipa.yml"
+
+# 版本号自动推进和清理旧产物都要写权限
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -28,14 +24,24 @@ jobs:
           xcodebuild -showsdks | grep -q 'iphoneos2[6-9]' || {
             echo "!! 需要 Xcode 26 或更新（iOS 26 SDK 才有 Liquid Glass API），当前 runner 不满足"; exit 1; }
 
+      - name: 读版本号
+        run: |
+          set -euo pipefail
+          # 版本号只认仓库根目录的 VERSION 文件；每发一版构建完自动 +0.01 写回
+          VERSION=$(tr -d ' \t\n' < VERSION)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "本次构建版本：$VERSION"
+
       - name: 安装 XcodeGen
         run: brew install xcodegen
 
-      - name: 写入构建号
+      - name: 写入版本号和构建号
         run: |
           set -euo pipefail
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" Support/Info.plist
           # 把 run 号写进 CFBundleVersion，App 里就能看到自己装的是哪一次构建
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GITHUB_RUN_NUMBER" Support/Info.plist
+          echo "CFBundleShortVersionString -> $(plutil -extract CFBundleShortVersionString raw Support/Info.plist)"
           echo "CFBundleVersion -> $(plutil -extract CFBundleVersion raw Support/Info.plist)"
 
       - name: 生成 Xcode 工程
@@ -59,19 +65,66 @@ jobs:
       - name: 打包成 IPA
         run: |
           set -euo pipefail
-          VERSION=$(plutil -extract CFBundleShortVersionString raw Support/Info.plist)
           BUILD=$(plutil -extract CFBundleVersion raw Support/Info.plist)
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "版本号 $VERSION ($BUILD)"
+          echo "版本号 $VERSION (构建 $BUILD)"
           APP=$(find build_out/Release-iphoneos -maxdepth 1 -name '*.app' | head -n 1)
           test -n "$APP"
           rm -rf Payload && mkdir Payload
           cp -R "$APP" Payload/
-          ditto -c -k --keepParent Payload "huajianji-$VERSION.ipa"
-          ls -lh "huajianji-$VERSION.ipa"
+          IPA_NAME="花间集-$VERSION-unsigned"
+          ditto -c -k --keepParent Payload "$IPA_NAME.ipa"
+          ls -lh "$IPA_NAME.ipa"
+          echo "IPA_NAME=$IPA_NAME" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: huajianji-${{ env.VERSION }}
-          path: huajianji-${{ env.VERSION }}.ipa
+          name: huajianji-${{ env.VERSION }}-unsigned
+          path: ${{ env.IPA_NAME }}.ipa
           if-no-files-found: error
+
+      - name: 发布到 Release（桌面同步任务从这里下载）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # 资产名用 ASCII，方便 curl 直链下载；本地同步任务会改名成 花间集-X.ipa
+          RELEASE_ASSET="HuajianJi-$VERSION-unsigned.ipa"
+          cp "$IPA_NAME.ipa" "$RELEASE_ASSET"
+          if ! gh release view latest >/dev/null 2>&1; then
+            gh release create latest --title "花间集 最新构建" \
+              --notes "自动构建的无签名 IPA，下载后用自签工具签名安装。"
+          fi
+          for a in $(gh release view latest --json assets --jq '.assets[].name'); do
+            gh release delete-asset latest "$a" -y || true
+          done
+          gh release upload latest "$RELEASE_ASSET" --clobber
+          echo "Release latest 已更新：$RELEASE_ASSET"
+
+      - name: 版本号 +0.01 写回仓库（留给下一次构建）
+        run: |
+          set -euo pipefail
+          NEXT=$(python3 -c "from decimal import Decimal; print(Decimal('$VERSION') + Decimal('0.01'))")
+          echo "$NEXT" > VERSION
+          git config user.name "huajianji-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add VERSION
+          # [skip ci] 防止这次写回又触发一轮构建
+          git commit -m "chore: 版本号推进到 $NEXT [skip ci]"
+          git push
+
+      - name: 清理旧的构建产物（只留最新一版）
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RUN_ID=${{ github.run_id }}
+          REPO=${{ github.repository }}
+          # 只删本工作流（build-ipa.yml）历史运行留下的产物，别碰其它 App 的
+          gh api "repos/$REPO/actions/artifacts?per_page=100" --paginate \
+            --jq ".artifacts[] | select(.workflow_run.id != $RUN_ID and .workflow_run.path == \".github/workflows/build-ipa.yml\") | .id" \
+          | while read -r id; do
+              [ -n "$id" ] || continue
+              gh api -X DELETE "repos/$REPO/actions/artifacts/$id" || true
+            done
+          echo "旧产物已清理，Artifacts 里只留本次的 huajianji-$VERSION-unsigned"
