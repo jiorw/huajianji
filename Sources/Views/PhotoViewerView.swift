@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import Photos
 import UIKit
 
@@ -181,6 +181,7 @@ struct PhotoViewerView: View {
         .sheet(isPresented: $finished) {
             BatchResultSheet(store: store) {
                 finished = false
+                store.endDemoIfActive()
                 dismiss()
             }
             .presentationDetents([.large])
