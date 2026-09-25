@@ -3,10 +3,12 @@ import Photos
 
 struct SettingsView: View {
     @ObservedObject var store: PhotoStore
-    @Environment(\.dismiss) private var dismiss
+    /// 原位过渡：设置页不再是 sheet，由 RootView 叠加显示，关闭走这个回调
+    var onClose: () -> Void = {}
 
     @State private var showFeedback = false
     @State private var showAbout = false
+    @State private var showDemoSetup = false
     @State private var backupURL: URL?
     @State private var showImporter = false
 
@@ -53,10 +55,13 @@ struct SettingsView: View {
                 }
 
                 Card {
-                    ToggleRow(title: "演示模式", isOn: $store.demoMode)
+                    ActionRow(title: "演示模式", systemImage: nil,
+                              value: store.demoMode ? "进行中" : "") {
+                        showDemoSetup = true
+                    }
                     if store.demoMode {
                         Hairline()
-                        CaptionRow(text: "开启后走完整流程，但确认删除不会动相册里的任何文件，统计数字也不计入。")
+                        CaptionRow(text: "演示进行中：删的不会真的删，一组结束自动关闭。")
                     }
                 }
 
@@ -92,11 +97,12 @@ struct SettingsView: View {
             .padding(.top, 8)
             .padding(.bottom, 30)
         }
-            // 半透明黑：能透出首页的模糊照片，玻璃卡片才有东西可折射
-            .background(Color.black.opacity(0.35).ignoresSafeArea())
+            // 吸「去留」的配色：纯黑近黑底 + 深灰实心卡片，不透底
+            .background(Color(red: 0.045, green: 0.045, blue: 0.055).ignoresSafeArea())
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showFeedback) { FeedbackSheet() }
         .sheet(isPresented: $showAbout) { AboutSheet() }
+        .sheet(isPresented: $showDemoSetup) { DemoModeView(store: store) }
         .fileImporter(isPresented: $showImporter,
                       allowedContentTypes: [.json],
                       allowsMultipleSelection: false) { result in
@@ -118,15 +124,16 @@ struct SettingsView: View {
                 .foregroundStyle(.white)
             Spacer()
             Button {
-                dismiss()
+                onClose()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 48, height: 48)
+                    .contentShape(Circle())
             }
             .buttonStyle(PressableStyle())
-            .glassEffect(.regular, in: Circle())
+            .glassEffect(.regular.tint(.black.opacity(0.35)).interactive(), in: Circle())
         }
         .padding(.top, 14)
         .padding(.bottom, 6)
@@ -166,7 +173,10 @@ struct SettingsView: View {
 
         var body: some View {
             VStack(spacing: 0) { content }
-                .glassEffect(.regular, in: .rect(cornerRadius: 26))
+                .background(Color(red: 0.10, green: 0.10, blue: 0.11),
+                            in: RoundedRectangle(cornerRadius: 26))
+                .overlay(RoundedRectangle(cornerRadius: 26)
+                    .strokeBorder(.white.opacity(0.05), lineWidth: 1))
         }
     }
 
@@ -183,7 +193,7 @@ struct SettingsView: View {
         let text: String
         var body: some View {
             Text(text)
-                .font(.system(size: 17))
+                .font(.system(size: 18))
                 .foregroundStyle(.white)
         }
     }
@@ -192,7 +202,7 @@ struct SettingsView: View {
         let text: String
         var body: some View {
             Text(text)
-                .font(.system(size: 15))
+                .font(.system(size: 16))
                 .foregroundStyle(.secondary)
         }
     }
