@@ -176,7 +176,6 @@ struct AssetPicker: UIViewControllerRepresentable {
                     .enumerateObjects { asset, _, _ in assets.append(asset) }
             }
             parent.onPicked(assets)
-            parent.dismiss()
         }
     }
 }
