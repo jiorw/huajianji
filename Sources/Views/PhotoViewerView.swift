@@ -94,6 +94,18 @@ struct PhotoViewerView: View {
                             withAnimation(.easeOut(duration: 0.2)) { toolsVisible.toggle() }
                         }
                     }
+                    .task(id: currentID) {
+                        // 预取的缓存键必须和前台显示尺寸一模一样，否则翻页必未命中，
+                        // 换图就黑屏转圈（上滑删除闪黑屏的元凶）
+                        let box = Self.cardSize(in: geo.size)
+                        for step in [1, 2] where store.deck.indices.contains(index + step) {
+                            let next = store.deck[index + step]
+                            if next.mediaType == .video { continue }
+                            MediaCache.prefetch([next],
+                                                size: Self.fittedSize(asset: next, in: box),
+                                                mode: .fit, scale: 3)
+                        }
+                    }
 
                 if isVideo {
                     VStack(spacing: 0) {
@@ -217,14 +229,31 @@ struct PhotoViewerView: View {
                     // 必须给出精确尺寸：只给 targetSize 的话视图会吃满整个提案，
                     // 卡片就会溢出屏幕、把底栏全盖住
                     let fit = Self.fittedSize(asset: asset, in: box)
-                    MediaImageView(asset: asset, targetSize: fit, contentMode: .fit)
-                        .frame(width: fit.width, height: fit.height)
+                    if fit.width < box.width * 0.6 {
+                        // 超长截图：宽度撑满卡片，纵向滚动看全图，不再缩成一条细条
+                        let full = CGSize(width: box.width,
+                                          height: box.width * CGFloat(asset.pixelHeight) / CGFloat(max(asset.pixelWidth, 1)))
+                        ScrollView(.vertical, showsIndicators: true) {
+                            MediaImageView(asset: asset,
+                                           targetSize: CGSize(width: full.width,
+                                                              height: min(full.height, 3500)),
+                                           contentMode: .fit,
+                                           requestScale: 1.5)
+                                .frame(width: full.width, height: full.height)
+                        }
+                        .frame(width: box.width, height: box.height)
                         .clipShape(cardShape)
                         .shadow(color: .black.opacity(0.45), radius: 22, y: 10)
-                        .scaleEffect(zoom)
-                        .offset(x: pan.width, y: pan.height)
-                        .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 60)))
-                        .offset(drag)
+                    } else {
+                        MediaImageView(asset: asset, targetSize: fit, contentMode: .fit)
+                            .frame(width: fit.width, height: fit.height)
+                            .clipShape(cardShape)
+                            .shadow(color: .black.opacity(0.45), radius: 22, y: 10)
+                            .scaleEffect(zoom)
+                            .offset(x: pan.width, y: pan.height)
+                            .rotationEffect(.degrees(zoomed ? 0 : Double(drag.width / 60)))
+                            .offset(drag)
+                    }
                 }
             }
         }
@@ -377,10 +406,11 @@ struct PhotoViewerView: View {
                 Spacer()
                 circleButton("square.and.arrow.up") { shareTapped() }
             }
-            // 一张张筛到哪了，一眼能看出来（细线，别抢戏）
+            // 一张张筛到哪了：短细线居中，别横贯整屏
             Capsule()
                 .fill(.white.opacity(0.18))
                 .frame(height: 3)
+                .frame(maxWidth: 170)
                 .overlay(alignment: .leading) {
                     GeometryReader { g in
                         let width = max(10, g.size.width * progress)
@@ -394,6 +424,7 @@ struct PhotoViewerView: View {
                         .frame(width: g.size.width, height: g.size.height, alignment: .center)
                     }
                 }
+                .frame(maxWidth: .infinity)
                 .animation(.spring(duration: 0.35, bounce: 0.2), value: index)
         }
         .padding(.horizontal, 16)
@@ -438,20 +469,21 @@ struct PhotoViewerView: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 12) {
-            circleButton(favorited ? "heart.fill" : "heart",
-                         tint: favorited ? .red : .white) { favoriteTapped() }
-            Spacer()
-            infoCapsule
-            Spacer()
-            if isVideo {
-                circleButton(playback.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill") {
-                    playback.toggleMute()
-                }
+        // 两端按钮固定死，中间胶囊再宽也挤不掉它们
+        ZStack {
+            HStack {
+                circleButton(favorited ? "heart.fill" : "heart",
+                             tint: favorited ? .red : .white) { favoriteTapped() }
+                Spacer()
+                circleButton("arrow.uturn.backward",
+                             tint: store.canUndo ? .white : .white.opacity(0.35)) { undoTapped() }
+                    .disabled(!store.canUndo)
             }
-            circleButton("arrow.uturn.backward",
-                         tint: store.canUndo ? .white : .white.opacity(0.35)) { undoTapped() }
-                .disabled(!store.canUndo)
+            HStack {
+                Spacer()
+                infoCapsule
+                Spacer()
+            }
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 18)
