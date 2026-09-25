@@ -114,11 +114,11 @@ struct PhotoViewerView: View {
                             .zIndex(9)
                             .opacity(toolsVisible ? 1 : 0)
                             .allowsHitTesting(toolsVisible)
-                        videoScrubber(size: geo.size)
+                        videoScrubber
                             .zIndex(9)
                             .opacity(toolsVisible ? 1 : 0)
                             .allowsHitTesting(toolsVisible)
-                        .animation(.easeOut(duration: 0.2), value: toolsVisible)
+                            .animation(.easeOut(duration: 0.2), value: toolsVisible)
                     }
                     VStack(spacing: 0) {
                         header
