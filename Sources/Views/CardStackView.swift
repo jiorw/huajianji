@@ -171,8 +171,10 @@ struct EmptyDeckView: View {
         .glassEffect(.regular, in: .rect(cornerRadius: 32))
         .padding(.horizontal, 12)
         .onAppear {
-            // 还有存货就自动续一批，不会出现"没照片可清理"卡住的情况
-            if store.remainingCount > 0 {
+            // 演示模式一组走完自动关闭；普通模式有存货就自动续一批
+            if store.demoMode {
+                store.endDemo()
+            } else if store.remainingCount > 0 {
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(500))
                     store.dealNewDeck()
