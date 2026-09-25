@@ -149,6 +149,14 @@ enum PhotoStyle: String, CaseIterable, Identifiable {
     case insCold
     case dusk
 
+    /// iOS 相册自带的那套（放最前）
+    static let iosFamily: [PhotoStyle] = [.vivid, .vividWarm, .vividCool,
+                                          .dramatic, .dramaticWarm, .dramaticCool]
+    /// 我自己推的调色（垫在 iOS 家族后面）
+    static let customFamily: [PhotoStyle] = [.blackGold, .leicaClassic, .cyberpunk,
+                                             .warmTone, .coolTone, .sunset, .hongKong,
+                                             .filmGreen, .cream, .insCold, .dusk]
+
     var id: String { rawValue }
 
     var title: String {
@@ -198,12 +206,13 @@ enum PhotoStyle: String, CaseIterable, Identifiable {
             let shadows = blend(light: cyan, dark: highlights, mask: scaled(invert(soft), 0.42))
             return controls(shadows, contrast: 1.15, saturation: 1.50, brightness: 0)
         case .vivid:
-            return controls(input, contrast: 1.08, saturation: 1.30, brightness: 0.01)
+            // 自然饱和度（CIVibrance）比硬拉 saturation 更接近苹果「鲜明」的观感
+            return vibrance(controls(input, contrast: 1.06, brightness: 0.01), amount: 0.6)
         case .vividWarm:
-            return temperature(controls(input, contrast: 1.08, saturation: 1.28, brightness: 0.01),
+            return temperature(vibrance(controls(input, contrast: 1.06, brightness: 0.01), amount: 0.55),
                                kelvin: 1000, tint: 6)
         case .vividCool:
-            return temperature(controls(input, contrast: 1.08, saturation: 1.28, brightness: 0.01),
+            return temperature(vibrance(controls(input, contrast: 1.06, brightness: 0.01), amount: 0.55),
                                kelvin: -1000, tint: -6)
         case .dramatic:
             return controls(input, contrast: 1.42, saturation: 0.88, brightness: -0.025)
@@ -320,6 +329,14 @@ enum PhotoStyle: String, CaseIterable, Identifiable {
         return controls(tinted, contrast: contrast, saturation: saturation, brightness: 0)
     }
 
+    /// 自然饱和度：只提不够鲜艳的颜色，已经饱和的不动
+    private func vibrance(_ input: CIImage, amount: Double) -> CIImage {
+        guard let filter = CIFilter(name: "CIVibrance") else { return input }
+        filter.setValue(input, forKey: "inputImage")
+        filter.setValue(amount, forKey: "inputAmount")
+        return filter.outputImage ?? input
+    }
+
     private func controls(_ input: CIImage, contrast: Double, saturation: Double,
                           brightness: Double) -> CIImage {
         guard let filter = CIFilter(name: "CIColorControls") else { return input }
@@ -415,12 +432,13 @@ enum EditorChoice: Identifiable, Hashable {
         return false
     }
 
-    /// 滤镜条顺序：网红调色 + 胶片系打头阵，通用调色随后，系统效果垫底
+    /// 滤镜条顺序：iOS 自带的鲜明/反差家族 + 系统效果打头，自创调色和 LUT 垫后
     static func all(luts: [CubeLUT]) -> [EditorChoice] {
         [.original]
-            + PhotoStyle.allCases.map { EditorChoice.style($0) }
-            + ColorGrade.allCases.map { EditorChoice.grade($0) }
+            + PhotoStyle.iosFamily.map { EditorChoice.style($0) }
             + SystemFilter.allCases.map { EditorChoice.builtin($0) }
+            + PhotoStyle.customFamily.map { EditorChoice.style($0) }
+            + ColorGrade.allCases.map { EditorChoice.grade($0) }
             + luts.map { EditorChoice.lut($0) }
     }
 }
