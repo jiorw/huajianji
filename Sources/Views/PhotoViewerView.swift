@@ -70,12 +70,7 @@ struct PhotoViewerView: View {
                     .ignoresSafeArea()
 
                 if isVideo {
-                    // 视频走「去留」式全宽铺放，不做圆角卡片
                     videoLayer(size: geo.size)
-                    if !fullscreenVideo {
-                        fullscreenPill(videoHeight: videoHeight(in: geo.size))
-                        videoTools
-                    }
                 } else {
                     mediaCard(size: geo.size)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -108,6 +103,23 @@ struct PhotoViewerView: View {
                     }
 
                 if isVideo {
+                    // 视频工具列/全屏按钮必须在手势层上方，否则点不到；
+                    // 并锁死宽度为屏幕宽，避免被挤出屏幕外
+                    if !fullscreenVideo {
+                        fullscreenPill(videoHeight: videoHeight(in: geo.size), size: geo.size)
+                            .zIndex(9)
+                            .opacity(toolsVisible ? 1 : 0)
+                            .allowsHitTesting(toolsVisible)
+                        videoTools(size: geo.size)
+                            .zIndex(9)
+                            .opacity(toolsVisible ? 1 : 0)
+                            .allowsHitTesting(toolsVisible)
+                        videoScrubber(size: geo.size)
+                            .zIndex(9)
+                            .opacity(toolsVisible ? 1 : 0)
+                            .allowsHitTesting(toolsVisible)
+                        .animation(.easeOut(duration: 0.2), value: toolsVisible)
+                    }
                     VStack(spacing: 0) {
                         header
                         Spacer()
@@ -117,9 +129,6 @@ struct PhotoViewerView: View {
                     .opacity(toolsVisible && !fullscreenVideo ? 1 : 0)
                     .allowsHitTesting(toolsVisible && !fullscreenVideo)
                     .animation(.easeOut(duration: 0.2), value: toolsVisible)
-                    videoScrubber
-                        .opacity(toolsVisible && !fullscreenVideo ? 1 : 0)
-                        .animation(.easeOut(duration: 0.2), value: toolsVisible)
                 } else {
                     VStack(spacing: 0) {
                         header
@@ -310,7 +319,7 @@ struct PhotoViewerView: View {
         return CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight)
     }
 
-    private func fullscreenPill(videoHeight: CGFloat) -> some View {
+    private func fullscreenPill(videoHeight: CGFloat, size: CGSize) -> some View {
         Button { enterFullscreenVideo() } label: {
             Label("全屏观看", systemImage: "arrow.up.left.and.arrow.down.right")
                 .font(.footnote.weight(.semibold))
@@ -321,12 +330,11 @@ struct PhotoViewerView: View {
         }
         .buttonStyle(PressableStyle())
         .glassEffect(.regular.tint(.black.opacity(0.35)).interactive(), in: Capsule())
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .frame(width: size.width, height: size.height, alignment: .center)
         .offset(y: videoHeight / 2 + 26)
-        .allowsHitTesting(toolsVisible)
     }
 
-    private var videoTools: some View {
+    private func videoTools(size: CGSize) -> some View {
         VStack(spacing: 12) {
             circleButton(favorited ? "heart.fill" : "heart",
                          tint: favorited ? .red : .white) { favoriteTapped() }
@@ -338,7 +346,7 @@ struct PhotoViewerView: View {
                          tint: store.canUndo ? .white : .white.opacity(0.35)) { undoTapped() }
                 .disabled(!store.canUndo)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        .frame(width: size.width, height: size.height, alignment: .bottomTrailing)
         .padding(.trailing, 16)
         .padding(.bottom, 120)
     }
