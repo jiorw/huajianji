@@ -93,8 +93,30 @@ struct AboutSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
+        VStack(spacing: 0) {
+            // 自绘页头：只固定这一条，下面所有内容（含标题和那句文案）整体滚动
+            ZStack {
+                Text("关于")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white)
+                HStack {
+                    Spacer()
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(PressableStyle())
+                    .glassEffect(.regular.interactive(), in: Circle())
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 18)
+            .padding(.bottom, 12)
+
+            ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("花间集").font(.title2.weight(.bold))
@@ -103,7 +125,7 @@ struct AboutSheet: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("一本能翻的相册。随手翻翻老照片，顺手把不想要的清掉，想要的留着。")
+                    Text("花间集，是一本属于你的私人相册。\n它不只是存放照片，而是帮你把生活里的繁花，温柔地整理成回忆。")
                         .font(.callout)
                         .lineSpacing(5)
                         .fixedSize(horizontal: false, vertical: true)
@@ -146,19 +168,12 @@ struct AboutSheet: View {
                         "换手机用设置里的「导出浏览记录」搬。"
                     ])
                 }
-                .padding(20)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
             }
-            .navigationTitle("关于")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
-                        .buttonStyle(.glass)
-                }
-            }
-            // 底下透一点 App 的模糊照片，玻璃卡片才有东西可折射
-            .presentationBackground(.black.opacity(0.72))
         }
+        // 底下透一点 App 的模糊照片，玻璃卡片才有东西可折射
+        .presentationBackground(.black.opacity(0.72))
     }
 
     private func block(_ title: String, _ lines: [String]) -> some View {
