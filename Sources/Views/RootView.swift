@@ -240,12 +240,14 @@ struct RootView: View {
     private var dock: some View {
         GlassEffectContainer(spacing: 0) {
             ZStack(alignment: .leading) {
-                // 选中玻璃块：拖动时跟手，松手弹回最近栏目
+                // 选中玻璃块：拖动时跟手拉长（液态过渡），松手弹回最近栏目
+                let frac = blobIndex - blobIndex.rounded(.down)
+                let stretch = dragIndex == nil ? 0 : sin(frac * .pi) * 26
                 RoundedRectangle(cornerRadius: 24)
                     .glassEffect(.regular.tint(.blue.opacity(0.30)).interactive(),
                                  in: RoundedRectangle(cornerRadius: 24))
-                    .frame(width: Self.dockItemWidth - 6, height: Self.dockHeight - 16)
-                    .offset(x: 9 + blobIndex * Self.dockItemWidth)
+                    .frame(width: Self.dockItemWidth - 6 + stretch, height: Self.dockHeight - 16)
+                    .offset(x: 9 + blobIndex * Self.dockItemWidth - stretch / 2)
                     .animation(dragIndex == nil ? .spring(duration: 0.4, bounce: 0.25) : nil,
                                value: blobIndex)
 
@@ -260,14 +262,15 @@ struct RootView: View {
             // 整条 Dock 是一块连续的玻璃，五个条目共享同一材质
             .glassEffect(.regular.tint(.black.opacity(0.32)), in: Capsule())
             .contentShape(Capsule())
-            .gesture(dockDrag)
+            // simultaneousGesture：和栏目按钮共存，按住不动再滑也能触发
+            .simultaneousGesture(dockDrag)
         }
         .shadow(color: .black.opacity(0.28), radius: 12, y: 5)
     }
 
-    /// 按住玻璃条左右滑，滑到哪个栏目松手就切哪个
+    /// 按住玻璃条左右滑，玻璃块跟手连续滑动，滑到哪个栏目松手就切哪个
     private var dockDrag: some Gesture {
-        DragGesture(minimumDistance: 8, coordinateSpace: .local)
+        DragGesture(minimumDistance: 4, coordinateSpace: .local)
             .onChanged { value in
                 let idx = (value.location.x - 6 - Self.dockItemWidth / 2) / Self.dockItemWidth
                 dragIndex = min(max(idx, 0), CGFloat(RootTab.allCases.count - 1))
