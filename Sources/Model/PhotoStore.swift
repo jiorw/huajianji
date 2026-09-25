@@ -1,4 +1,4 @@
-import Foundation
+﻿import Foundation
 import Photos
 import UIKit
 
@@ -15,9 +15,9 @@ enum StatKind: String, CaseIterable, Codable {
 
     var title: String {
         switch self {
-        case .photo: "花间册"
-        case .screenshot: "碎影集"
-        case .video: "流光卷"
+        case .photo: "鑺遍棿鍐?
+        case .screenshot: "纰庡奖闆?
+        case .video: "娴佸厜鍗?
         }
     }
 
@@ -40,8 +40,7 @@ enum StatKind: String, CaseIterable, Codable {
     }
 }
 
-/// 分类累计：查看数 / 删除数 / 腾出字节数
-struct CleanupStats: Codable {
+/// 鍒嗙被绱锛氭煡鐪嬫暟 / 鍒犻櫎鏁?/ 鑵惧嚭瀛楄妭鏁?struct CleanupStats: Codable {
     var reviewed: [String: Int] = [:]
     var deleted: [String: Int] = [:]
     var bytes: [String: Int64] = [:]
@@ -58,11 +57,11 @@ enum RootTab: Int, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .photos: "花间册"
-        case .screenshots: "碎影集"
-        case .editing: "花影染"
-        case .videos: "流光卷"
-        case .stats: "岁华簿"
+        case .photos: "鑺遍棿鍐?
+        case .screenshots: "纰庡奖闆?
+        case .editing: "鑺卞奖鏌?
+        case .videos: "娴佸厜鍗?
+        case .stats: "宀佸崕绨?
         }
     }
 
@@ -85,8 +84,7 @@ enum RootTab: Int, CaseIterable, Identifiable {
     }
 }
 
-/// 当前栏里再按内容类型筛一遍，对应原版顶部下拉菜单那几项
-enum ContentFilter: String, CaseIterable, Identifiable {
+/// 褰撳墠鏍忛噷鍐嶆寜鍐呭绫诲瀷绛涗竴閬嶏紝瀵瑰簲鍘熺増椤堕儴涓嬫媺鑿滃崟閭ｅ嚑椤?enum ContentFilter: String, CaseIterable, Identifiable {
     case all
     case screenshot
     case selfie
@@ -98,12 +96,12 @@ enum ContentFilter: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .all: "照片"
-        case .screenshot: "截屏"
-        case .selfie: "自拍"
-        case .live: "实况"
-        case .animated: "动图"
-        case .tall: "长图"
+        case .all: "鐓х墖"
+        case .screenshot: "鎴睆"
+        case .selfie: "鑷媿"
+        case .live: "瀹炲喌"
+        case .animated: "鍔ㄥ浘"
+        case .tall: "闀垮浘"
         }
     }
 
@@ -125,7 +123,7 @@ enum ContentFilter: String, CaseIterable, Identifiable {
         case .screenshot:
             return asset.mediaSubtypes.contains(.photoScreenshot)
         case .selfie:
-            return false   // 由 PhotoStore 查自拍智能相册，见 isSelfie(_:)
+            return false   // 鐢?PhotoStore 鏌ヨ嚜鎷嶆櫤鑳界浉鍐岋紝瑙?isSelfie(_:)
         case .live:
             return asset.mediaSubtypes.contains(.photoLive)
         case .animated:
@@ -143,8 +141,8 @@ enum BrowseMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .blindBox: "随机盲盒"
-        case .onThisDay: "回到那天"
+        case .blindBox: "闅忔満鐩茬洅"
+        case .onThisDay: "鍥炲埌閭ｅぉ"
         }
     }
 }
@@ -156,8 +154,8 @@ enum TimeFormat: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .relative: "距今"
-        case .absolute: "具体日期"
+        case .relative: "璺濅粖"
+        case .absolute: "鍏蜂綋鏃ユ湡"
         }
     }
 }
@@ -169,14 +167,13 @@ enum DoubleTapAction: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .zoom: "放大"
-        case .favorite: "收藏"
+        case .zoom: "鏀惧ぇ"
+        case .favorite: "鏀惰棌"
         }
     }
 }
 
-/// 朝花夕拾：往年今天拍的东西，按年份分组
-struct MemoryGroup: Identifiable {
+/// 鏈濊姳澶曟嬀锛氬線骞翠粖澶╂媿鐨勪笢瑗匡紝鎸夊勾浠藉垎缁?struct MemoryGroup: Identifiable {
     let year: Int
     let assets: [PHAsset]
     var id: Int { year }
@@ -220,12 +217,36 @@ final class PhotoStore: NSObject, ObservableObject {
 
     @Published var tab: RootTab = .photos {
         didSet {
-            guard oldValue != tab, tab.mediaType != nil else { return }
-            pendingHistoryReset = true   // 换栏就是另一批牌，旧栏的组不算历史
-            // 换栏立即换牌：拖到过渡动画后半段才换的话，新栏会先闪旧牌再闪新牌
+            guard oldValue != tab else { return }
+            pendingHistoryReset = true
+            // 绂诲紑鏃ф爮锛氬姩杩囩収鐗囧氨浣滃簾瀹冪殑瀛樻。锛堜笅娆″彂鏂扮墝锛夛紝娌″姩杩囧氨鍘熸牱瀛樻。
+            if oldValue.mediaType != nil {
+                if actedSinceEntry {
+                    deckArchive[oldValue] = nil
+                } else {
+                    deckArchive[oldValue] = (deck, cursor, deckHistory)
+                }
+                actedSinceEntry = false
+            }
+            guard tab.mediaType != nil else { return }
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(80))
-                self.refreshLibrary(redeal: true)
+                if let saved = deckArchive[tab] {
+                    // 鎭㈠瀛樻。锛氳繖鏍忎笂娆℃槸浠€涔堟牱灏辫繕鏄粈涔堟牱锛岀収鐗囧叏鍦ㄧ紦瀛橀噷锛岀鍒囦笉闂?                    deck = saved.deck
+                    cursor = saved.cursor
+                    deckHistory = saved.history
+                    actedSinceEntry = false
+                    if let pool = pools[poolKey] {
+                        tabTotal = pool.total
+                        candidates = pool.candidates
+                    } else {
+                        rebuildCandidates()
+                    }
+                    refreshCounts()
+                    pruneDeck()
+                } else {
+                    refreshLibrary(redeal: true)
+                }
             }
         }
     }
@@ -239,7 +260,7 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
-    /// 顶部下拉菜单选的内容类型，只在图片栏生效
+    /// 椤堕儴涓嬫媺鑿滃崟閫夌殑鍐呭绫诲瀷锛屽彧鍦ㄥ浘鐗囨爮鐢熸晥
     @Published var contentFilter: ContentFilter = .all {
         didSet {
             guard oldValue != contentFilter else { return }
@@ -248,8 +269,7 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
-    /// 演示模式：走完全流程但不真的删文件
-    @Published var demoMode: Bool {
+    /// 婕旂ず妯″紡锛氳蛋瀹屽叏娴佺▼浣嗕笉鐪熺殑鍒犳枃浠?    @Published var demoMode: Bool {
         didSet {
             guard oldValue != demoMode else { return }
             defaults.set(demoMode, forKey: Keys.demo)
@@ -308,7 +328,7 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
-    /// 按用户在设置里选的口径显示拍摄时间
+    /// 鎸夌敤鎴峰湪璁剧疆閲岄€夌殑鍙ｅ緞鏄剧ず鎷嶆憚鏃堕棿
     func reviewTimeText(for asset: PHAsset) -> String {
         timeFormat == .relative
             ? TimeText.since(asset.creationDate)
@@ -336,17 +356,17 @@ final class PhotoStore: NSObject, ObservableObject {
     private var fetchResult: PHFetchResult<PHAsset>?
     private var verdicts: [String: Verdict] = [:]
     private var undoStack: [String] = []
-    /// 最近发过的几组；左滑退到本组第一张时用它翻回上一组
-    private var deckHistory: [[PHAsset]] = []
-    /// 换栏后置位：下一次 deal 不清历史而是把旧栏那组丢掉，避免左滑串到别的册
-    private var pendingHistoryReset = false
+    /// 鏈€杩戝彂杩囩殑鍑犵粍锛涘乏婊戦€€鍒版湰缁勭涓€寮犳椂鐢ㄥ畠缈诲洖涓婁竴缁?    private var deckHistory: [[PHAsset]] = []
+    /// 鎹㈡爮鍚庣疆浣嶏細涓嬩竴娆?deal 涓嶆竻鍘嗗彶鑰屾槸鎶婃棫鏍忛偅缁勪涪鎺夛紝閬垮厤宸︽粦涓插埌鍒殑鍐?    private var pendingHistoryReset = false
     private var batchMarked: [String] = []
     private var kindOf: [String: String] = [:]
-    /// 当前分类下还没筛过的资源 id，发牌时直接从这里随机抽。
-    /// 存 id 不存下标：PHFetchResult 会随相册变化自己更新，下标会错位
+    /// 鎹㈡爮瀛樻。锛氭病鍔ㄨ繃鐓х墖鐨勬爮鍒囧洖鏉ュ師鏍锋仮澶嶏紝涓嶅彂鏂扮墝
+    private var deckArchive: [RootTab: (deck: [PHAsset], cursor: Int, history: [[PHAsset]])] = [:]
+    /// 鏈杩涙爮鍚庢湁娌℃湁鍋氳繃鏍囪绫诲姩浣?    private var actedSinceEntry = false
+    /// 褰撳墠鍒嗙被涓嬭繕娌＄瓫杩囩殑璧勬簮 id锛屽彂鐗屾椂鐩存帴浠庤繖閲岄殢鏈烘娊銆?    /// 瀛?id 涓嶅瓨涓嬫爣锛歅HFetchResult 浼氶殢鐩稿唽鍙樺寲鑷繁鏇存柊锛屼笅鏍囦細閿欎綅
     private var candidates: [String] = []
     private var tabTotal = 0
-    /// 每个分类的池子和抓取结果都缓存，切栏不再全库重扫；池子还要按内容类型分开
+    /// 姣忎釜鍒嗙被鐨勬睜瀛愬拰鎶撳彇缁撴灉閮界紦瀛橈紝鍒囨爮涓嶅啀鍏ㄥ簱閲嶆壂锛涙睜瀛愯繕瑕佹寜鍐呭绫诲瀷鍒嗗紑
     private struct Pool { let total: Int; var candidates: [String] }
     private var pools: [String: Pool] = [:]
     private var fetchCache: [Int: PHFetchResult<PHAsset>] = [:]
@@ -361,7 +381,7 @@ final class PhotoStore: NSObject, ObservableObject {
 
     var current: PHAsset? { card(at: 0) }
 
-    /// 本批 20 张里还剩几张没筛
+    /// 鏈壒 20 寮犻噷杩樺墿鍑犲紶娌＄瓫
     var deckRemaining: Int { max(0, deck.count - cursor) }
 
     func card(at offset: Int) -> PHAsset? {
@@ -369,7 +389,7 @@ final class PhotoStore: NSObject, ObservableObject {
         return deck.indices.contains(index) ? deck[index] : nil
     }
 
-    /// 震动反馈，设置里可以整体关掉
+    /// 闇囧姩鍙嶉锛岃缃噷鍙互鏁翠綋鍏虫帀
     func bump(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .light) {
         guard hapticsEnabled else { return }
         UIImpactFeedbackGenerator(style: style).impactOccurred()
@@ -391,8 +411,7 @@ final class PhotoStore: NSObject, ObservableObject {
         super.init()
         if let data = defaults.data(forKey: Keys.verdicts),
            let saved = try? JSONDecoder().decode([String: Verdict].self, from: data) {
-            // 旧版本记录不分栏，键里没有 "|" 前缀，认不出来就直接丢掉重来一组
-            verdicts = saved.filter { $0.key.contains("|") }
+            // 鏃х増鏈褰曚笉鍒嗘爮锛岄敭閲屾病鏈?"|" 鍓嶇紑锛岃涓嶅嚭鏉ュ氨鐩存帴涓㈡帀閲嶆潵涓€缁?            verdicts = saved.filter { $0.key.contains("|") }
         }
         if let data = defaults.data(forKey: Keys.stats),
            let saved = try? JSONDecoder().decode(CleanupStats.self, from: data) {
@@ -403,7 +422,7 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - 收藏
+    // MARK: - 鏀惰棌
 
     func isFavorite(_ id: String) -> Bool { favoriteIDs.contains(id) }
 
@@ -429,10 +448,9 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - 朝花夕拾（往年今天）
+    // MARK: - 鏈濊姳澶曟嬀锛堝線骞翠粖澶╋級
 
-    /// 一年一条查询交给 PhotoKit 过滤，比全库扫一遍便宜得多；放到后台线程调
-    nonisolated static func memoryGroups() -> [MemoryGroup] {
+    /// 涓€骞翠竴鏉℃煡璇氦缁?PhotoKit 杩囨护锛屾瘮鍏ㄥ簱鎵竴閬嶄究瀹滃緱澶氾紱鏀惧埌鍚庡彴绾跨▼璋?    nonisolated static func memoryGroups() -> [MemoryGroup] {
         let calendar = Calendar.current
         let today = calendar.dateComponents([.month, .day], from: Date())
         let thisYear = calendar.component(.year, from: Date())
@@ -455,7 +473,7 @@ final class PhotoStore: NSObject, ObservableObject {
         return groups
     }
 
-    /// 把某年的「今天」当成一组牌摊开，直接进大图页翻
+    /// 鎶婃煇骞寸殑銆屼粖澶┿€嶅綋鎴愪竴缁勭墝鎽婂紑锛岀洿鎺ヨ繘澶у浘椤电炕
     func showMemory(_ assets: [PHAsset]) {
         guard !assets.isEmpty else { return }
         deck = assets
@@ -465,7 +483,7 @@ final class PhotoStore: NSObject, ObservableObject {
         refreshCounts()
     }
 
-    // MARK: - 统计读数
+    // MARK: - 缁熻璇绘暟
 
     func reviewedCount(_ kind: StatKind) -> Int { stats.reviewed[kind.rawValue] ?? 0 }
     func deletedCount(_ kind: StatKind) -> Int { stats.deleted[kind.rawValue] ?? 0 }
@@ -481,7 +499,7 @@ final class PhotoStore: NSObject, ObservableObject {
         return Double(freedBytes(kind)) / Double(total)
     }
 
-    // MARK: - 权限
+    // MARK: - 鏉冮檺
 
     func requestAccess() {
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
@@ -507,7 +525,7 @@ final class PhotoStore: NSObject, ObservableObject {
         refreshLibrary(redeal: true)
     }
 
-    // MARK: - 批次
+    // MARK: - 鎵规
 
     private func fetchOptions() -> PHFetchOptions {
         let options = PHFetchOptions()
@@ -547,7 +565,7 @@ final class PhotoStore: NSObject, ObservableObject {
         refreshCounts()
     }
 
-    /// 照片栏 = 所有图片（含截图）；截图栏 = 只有截图；视频栏 = 只有视频
+    /// 鐓х墖鏍?= 鎵€鏈夊浘鐗囷紙鍚埅鍥撅級锛涙埅鍥炬爮 = 鍙湁鎴浘锛涜棰戞爮 = 鍙湁瑙嗛
     private func matchesTab(_ asset: PHAsset) -> Bool {
         let isShot = asset.mediaSubtypes.contains(.photoScreenshot)
         switch tab {
@@ -569,7 +587,7 @@ final class PhotoStore: NSObject, ObservableObject {
         contentFilter == .selfie ? isSelfie(asset) : contentFilter.matches(asset)
     }
 
-    /// 自拍没有 mediaSubtype 可判，只能查系统「自拍」智能相册，取一次缓存住
+    /// 鑷媿娌℃湁 mediaSubtype 鍙垽锛屽彧鑳芥煡绯荤粺銆岃嚜鎷嶃€嶆櫤鑳界浉鍐岋紝鍙栦竴娆＄紦瀛樹綇
     private func isSelfie(_ asset: PHAsset) -> Bool {
         if selfieIDs == nil {
             var ids = Set<String>()
@@ -593,7 +611,7 @@ final class PhotoStore: NSObject, ObservableObject {
         return now.month == then.month && now.day == then.day && (then.year ?? 0) < (now.year ?? 0)
     }
 
-    /// 一遍扫完当前分类的可选池，避免每次发牌都全库试探
+    /// 涓€閬嶆壂瀹屽綋鍓嶅垎绫荤殑鍙€夋睜锛岄伩鍏嶆瘡娆″彂鐗岄兘鍏ㄥ簱璇曟帰
     private func rebuildCandidates() {
         guard let result = fetchResult else {
             candidates = []
@@ -612,25 +630,22 @@ final class PhotoStore: NSObject, ObservableObject {
         pools[poolKey] = Pool(total: matching, candidates: fresh)
     }
 
-    /// 相册内容或筛选口径变了：全部作废
+    /// 鐩稿唽鍐呭鎴栫瓫閫夊彛寰勫彉浜嗭細鍏ㄩ儴浣滃簾
     private func invalidateAllPools() {
         pools.removeAll()
         fetchCache.removeAll()
         selfieIDs = nil
     }
 
-    /// 只有当前分类的池子需要重算
-    private func invalidateCurrentPool() {
+    /// 鍙湁褰撳墠鍒嗙被鐨勬睜瀛愰渶瑕侀噸绠?    private func invalidateCurrentPool() {
         pools[poolKey] = nil
     }
 
-    /// 从相册里随机发一批，数量最多 deckSize 张
-    func dealNewDeck() {
+    /// 浠庣浉鍐岄噷闅忔満鍙戜竴鎵癸紝鏁伴噺鏈€澶?deckSize 寮?    func dealNewDeck() {
         deal()
     }
 
-    /// 从候选池里随机取一组，取走的从池子里摘掉，下一组不会重复
-    private func deal() {
+    /// 浠庡€欓€夋睜閲岄殢鏈哄彇涓€缁勶紝鍙栬蛋鐨勪粠姹犲瓙閲屾憳鎺夛紝涓嬩竴缁勪笉浼氶噸澶?    private func deal() {
         guard !candidates.isEmpty else {
             deck = []
             cursor = 0
@@ -644,12 +659,10 @@ final class PhotoStore: NSObject, ObservableObject {
         for _ in 0..<wanted {
             picked.append(candidates.remove(at: Int.random(in: 0..<candidates.count)))
         }
-        // 只存 id，取牌时才换成 PHAsset，相册变动后不会拿到错位的那张
-        var byID: [String: PHAsset] = [:]
+        // 鍙瓨 id锛屽彇鐗屾椂鎵嶆崲鎴?PHAsset锛岀浉鍐屽彉鍔ㄥ悗涓嶄細鎷垮埌閿欎綅鐨勯偅寮?        var byID: [String: PHAsset] = [:]
         PHAsset.fetchAssets(withLocalIdentifiers: picked, options: nil)
             .enumerateObjects { asset, _, _ in byID[asset.localIdentifier] = asset }
-        // 换组前把旧组留一份，左滑退到第一张时还能翻回去
-        if pendingHistoryReset {
+        // 鎹㈢粍鍓嶆妸鏃х粍鐣欎竴浠斤紝宸︽粦閫€鍒扮涓€寮犳椂杩樿兘缈诲洖鍘?        if pendingHistoryReset {
             deckHistory.removeAll()
             pendingHistoryReset = false
         } else if !deck.isEmpty {
@@ -663,8 +676,7 @@ final class PhotoStore: NSObject, ObservableObject {
         refreshCounts()
     }
 
-    // MARK: - 首页预览翻页（不产生任何标记）
-
+    // MARK: - 棣栭〉棰勮缈婚〉锛堜笉浜х敓浠讳綍鏍囪锛?
     var canGoPrevious: Bool { cursor > 0 || !deckHistory.isEmpty }
     var canGoNext: Bool { cursor + 1 < deck.count }
 
@@ -673,17 +685,14 @@ final class PhotoStore: NSObject, ObservableObject {
         cursor += 1
     }
 
-    /// 在本组里就往回退；已经退到第一张就翻回上一组，接着从那张继续退，
-    /// 这样左滑在任何时候都有反馈，不会变成「只能右滑」
-    func goPreviousPreview() {
+    /// 鍦ㄦ湰缁勯噷灏卞線鍥為€€锛涘凡缁忛€€鍒扮涓€寮犲氨缈诲洖涓婁竴缁勶紝鎺ョ潃浠庨偅寮犵户缁€€锛?    /// 杩欐牱宸︽粦鍦ㄤ换浣曟椂鍊欓兘鏈夊弽棣堬紝涓嶄細鍙樻垚銆屽彧鑳藉彸婊戙€?    func goPreviousPreview() {
         guard canGoPrevious else { return }
         if cursor > 0 {
             cursor -= 1
             return
         }
         guard let previous = deckHistory.popLast() else { return }
-        deckHistory.append(deck)          // 当前这组压回去，右滑还能再回来
-        deck = previous
+        deckHistory.append(deck)          // 褰撳墠杩欑粍鍘嬪洖鍘伙紝鍙虫粦杩樿兘鍐嶅洖鏉?        deck = previous
         cursor = max(previous.count - 1, 0)
     }
 
@@ -693,25 +702,22 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
-    /// 浏览记录按栏分开存：同一张截图在照片栏和截图栏各算各的
-    private func vkey(_ assetID: String) -> String { "\(tab.rawValue)|\(assetID)" }
+    /// 娴忚璁板綍鎸夋爮鍒嗗紑瀛橈細鍚屼竴寮犳埅鍥惧湪鐓х墖鏍忓拰鎴浘鏍忓悇绠楀悇鐨?    private func vkey(_ assetID: String) -> String { "\(tab.rawValue)|\(assetID)" }
 
     private static func realID(from key: String) -> String {
         guard let index = key.firstIndex(of: "|") else { return key }
         return String(key[key.index(after: index)...])
     }
 
-    /// 本批里被标记待删、但还没真正删除的（返回真实 localIdentifier）
-    var queuedInBatch: [String] {
+    /// 鏈壒閲岃鏍囪寰呭垹銆佷絾杩樻病鐪熸鍒犻櫎鐨勶紙杩斿洖鐪熷疄 localIdentifier锛?    var queuedInBatch: [String] {
         batchMarked.compactMap { verdicts[$0] == .queued ? Self.realID(from: $0) : nil }
     }
 
-    /// 本批里选择保留的张数
-    var keptInBatch: Int {
+    /// 鏈壒閲岄€夋嫨淇濈暀鐨勫紶鏁?    var keptInBatch: Int {
         batchMarked.filter { verdicts[$0] == .kept }.count
     }
 
-    /// 统计页用：把全部待删标记退回，不删任何东西
+    /// 缁熻椤电敤锛氭妸鍏ㄩ儴寰呭垹鏍囪閫€鍥烇紝涓嶅垹浠讳綍涓滆タ
     func discardAllQueued() {
         let snapshot = verdicts
         for (key, verdict) in snapshot where verdict == .queued {
@@ -727,8 +733,7 @@ final class PhotoStore: NSObject, ObservableObject {
         refreshLibrary(redeal: false)
     }
 
-    /// 放弃：本批待删标记全部退回，不删任何东西，直接再来一组
-    func abandonBatch() {
+    /// 鏀惧純锛氭湰鎵瑰緟鍒犳爣璁板叏閮ㄩ€€鍥烇紝涓嶅垹浠讳綍涓滆タ锛岀洿鎺ュ啀鏉ヤ竴缁?    func abandonBatch() {
         for key in batchMarked where verdicts[key] == .queued {
             verdicts.removeValue(forKey: key)
             if let kind = kindOf.removeValue(forKey: key), let current = stats.reviewed[kind] {
@@ -750,13 +755,11 @@ final class PhotoStore: NSObject, ObservableObject {
         alive.enumerateObjects { asset, _, _ in ids.insert(asset.localIdentifier) }
         deck = deck.filter { ids.contains($0.localIdentifier) }
         cursor = min(cursor, max(deck.count - 1, 0))
-        // 剩不到三张撑不起扇形卡堆，直接补发新的一批
-        if deck.count < 3 { deal() }
+        // 鍓╀笉鍒颁笁寮犳拺涓嶈捣鎵囧舰鍗″爢锛岀洿鎺ヨˉ鍙戞柊鐨勪竴鎵?        if deck.count < 3 { deal() }
     }
 
-    // MARK: - 筛选
-
-    /// 全屏筛选页标记一张：.queued 待删 / .kept 看过保留
+    // MARK: - 绛涢€?
+    /// 鍏ㄥ睆绛涢€夐〉鏍囪涓€寮狅細.queued 寰呭垹 / .kept 鐪嬭繃淇濈暀
     func mark(_ verdict: Verdict, asset: PHAsset) {
         let key = vkey(asset.localIdentifier)
         guard verdicts[key] == nil else { return }
@@ -766,6 +769,7 @@ final class PhotoStore: NSObject, ObservableObject {
         let kind = StatKind(asset: asset).rawValue
         kindOf[key] = kind
         stats.reviewed[kind, default: 0] += 1
+        actedSinceEntry = true
         schedulePersist()
         refreshCounts()
     }
@@ -783,12 +787,12 @@ final class PhotoStore: NSObject, ObservableObject {
         } else if let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject {
             deck.insert(asset, at: min(cursor, deck.count))
         }
+        actedSinceEntry = true
         schedulePersist()
         refreshCounts()
     }
 
-    /// 待删弹层里点单张反悔：把这一张从待删队列捞回来
-    func unmark(_ asset: PHAsset) {
+    /// 寰呭垹寮瑰眰閲岀偣鍗曞紶鍙嶆倲锛氭妸杩欎竴寮犱粠寰呭垹闃熷垪鎹炲洖鏉?    func unmark(_ asset: PHAsset) {
         let key = vkey(asset.localIdentifier)
         guard verdicts[key] == .queued else { return }
         verdicts.removeValue(forKey: key)
@@ -799,12 +803,10 @@ final class PhotoStore: NSObject, ObservableObject {
         }
         schedulePersist()
         refreshCounts()
-        // 这张重新变回可抽，之后发牌还能再见到它；不动当前这副牌
-        invalidateCurrentPool()
+        // 杩欏紶閲嶆柊鍙樺洖鍙娊锛屼箣鍚庡彂鐗岃繕鑳藉啀瑙佸埌瀹冿紱涓嶅姩褰撳墠杩欏壇鐗?        invalidateCurrentPool()
     }
 
-    /// 把待删队列提交给系统相册，之后仍可在「最近删除」找回 30 天
-    func commitQueuedDeletions() async {
+    /// 鎶婂緟鍒犻槦鍒楁彁浜ょ粰绯荤粺鐩稿唽锛屼箣鍚庝粛鍙湪銆屾渶杩戝垹闄ゃ€嶆壘鍥?30 澶?    func commitQueuedDeletions() async {
         let keys = verdicts.compactMap { $0.value == .queued ? $0.key : nil }
         let ids = keys.map(Self.realID)
         guard !ids.isEmpty, !isCommitting else { return }
@@ -814,15 +816,13 @@ final class PhotoStore: NSObject, ObservableObject {
             flush()
         }
         if demoMode {
-            // 演示模式：只记账，不碰相册
-            for key in keys { verdicts[key] = .deleted }
+            // 婕旂ず妯″紡锛氬彧璁拌处锛屼笉纰扮浉鍐?            for key in keys { verdicts[key] = .deleted }
             undoStack.removeAll()
             refreshLibrary(redeal: true)
             return
         }
         do {
-            // 删除前先取回类型和占用体积，删完就读不到了
-            let targets = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
+            // 鍒犻櫎鍓嶅厛鍙栧洖绫诲瀷鍜屽崰鐢ㄤ綋绉紝鍒犲畬灏辫涓嶅埌浜?            let targets = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
             var pendingCount: [String: Int] = [:]
             var pendingBytes: [String: Int64] = [:]
             targets.enumerateObjects { asset, _, _ in
@@ -838,11 +838,11 @@ final class PhotoStore: NSObject, ObservableObject {
             for (kind, count) in pendingCount { stats.deleted[kind, default: 0] += count }
             for (kind, bytes) in pendingBytes { stats.bytes[kind, default: 0] += bytes }
             undoStack.removeAll()
-            // 相册已经变了，缓存的抓取结果和池子全部作废，别等异步通知
+            // 鐩稿唽宸茬粡鍙樹簡锛岀紦瀛樼殑鎶撳彇缁撴灉鍜屾睜瀛愬叏閮ㄤ綔搴燂紝鍒瓑寮傛閫氱煡
             invalidateAllPools()
             refreshLibrary(redeal: true)
         } catch {
-            errorMessage = "删除没有生效：\(error.localizedDescription)"
+            errorMessage = "鍒犻櫎娌℃湁鐢熸晥锛歕(error.localizedDescription)"
         }
     }
 
@@ -863,7 +863,7 @@ final class PhotoStore: NSObject, ObservableObject {
         refreshLibrary(redeal: true)
     }
 
-    // MARK: - 记录导出 / 导入（自签没有 CloudKit 权限，用文件搬）
+    // MARK: - 璁板綍瀵煎嚭 / 瀵煎叆锛堣嚜绛炬病鏈?CloudKit 鏉冮檺锛岀敤鏂囦欢鎼級
 
     struct BackupPayload: Codable {
         var version = 1
@@ -877,12 +877,12 @@ final class PhotoStore: NSObject, ObservableObject {
         let payload = BackupPayload(verdicts: verdicts, stats: stats, favorites: Array(favoriteIDs))
         guard let data = try? JSONEncoder().encode(payload) else { return nil }
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("花间集记录-\(Self.stamp()).json")
+            .appendingPathComponent("鑺遍棿闆嗚褰?\(Self.stamp()).json")
         do {
             try data.write(to: url, options: .atomic)
             return url
         } catch {
-            errorMessage = "导出失败：\(error.localizedDescription)"
+            errorMessage = "瀵煎嚭澶辫触锛歕(error.localizedDescription)"
             return nil
         }
     }
@@ -892,7 +892,7 @@ final class PhotoStore: NSObject, ObservableObject {
         defer { if secured { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url),
               let payload = try? JSONDecoder().decode(BackupPayload.self, from: data) else {
-            errorMessage = "这个文件不是花间集导出的记录"
+            errorMessage = "杩欎釜鏂囦欢涓嶆槸鑺遍棿闆嗗鍑虹殑璁板綍"
             return
         }
         verdicts = payload.verdicts
@@ -902,7 +902,7 @@ final class PhotoStore: NSObject, ObservableObject {
         batchMarked = []
         writeToDisk()
         refreshLibrary(redeal: true)
-        errorMessage = "已导入 \(payload.verdicts.count) 条浏览记录"
+        errorMessage = "宸插鍏?\(payload.verdicts.count) 鏉℃祻瑙堣褰?
     }
 
     private static func stamp() -> String {
@@ -911,7 +911,7 @@ final class PhotoStore: NSObject, ObservableObject {
         return f.string(from: Date())
     }
 
-    // MARK: - 计数与持久化
+    // MARK: - 璁℃暟涓庢寔涔呭寲
 
     private func refreshCounts() {
         var queued = 0
@@ -936,8 +936,7 @@ final class PhotoStore: NSObject, ObservableObject {
         }
     }
 
-    /// 退到后台时调用，别把攒着的进度丢了
-    func flush() {
+    /// 閫€鍒板悗鍙版椂璋冪敤锛屽埆鎶婃敀鐫€鐨勮繘搴︿涪浜?    func flush() {
         persistTask?.cancel()
         writeToDisk()
     }
