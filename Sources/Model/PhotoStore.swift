@@ -234,7 +234,9 @@ final class PhotoStore: NSObject, ObservableObject {
             guard tab.mediaType != nil else { return }
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(80))
-                if let saved = deckArchive[tab] {
+                if pendingDemoDeck != nil {
+                    applyPendingDemo()
+                } else if let saved = deckArchive[tab] {
                     // 恢复存档：这栏上次什么样就还是什么样，照片全在缓存里，秒切不闪
                     deck = saved.deck
                     cursor = saved.cursor
@@ -371,6 +373,8 @@ final class PhotoStore: NSObject, ObservableObject {
     private var deckArchive: [RootTab: (deck: [PHAsset], cursor: Int, history: [[PHAsset]])] = [:]
     /// 本次进栏后有没有做过标记类动作
     private var actedSinceEntry = false
+    /// 演示模式待应用的牌（等换栏动画落位后应用，按用户所选顺序）
+    private var pendingDemoDeck: [PHAsset]?
     /// 当前分类下还没筛过的资源 id，发牌时直接从这里随机抽。
     /// 存 id 不存下标：PHFetchResult 会随相册变化自己更新，下标会错位
     private var candidates: [String] = []
@@ -837,6 +841,46 @@ final class PhotoStore: NSObject, ObservableObject {
         refreshCounts()
         // 这张重新变回可抽，之后发牌还能再见到它；不动当前这副牌
         invalidateCurrentPool()
+    }
+
+    /// 演示模式：用户自选 5-15 张照片/视频，按所选顺序当一副牌，
+    /// 完整走流程但不会真的删除；一组结束自动关闭
+    func startDemo(with assets: [PHAsset], isVideoDemo: Bool) {
+        demoMode = true
+        pendingHistoryReset = true
+        actedSinceEntry = false
+        batchMarked = []
+        deckArchive.removeAll()
+        pendingDemoDeck = assets
+        let target: RootTab = isVideoDemo ? .videos : .photos
+        if tab == target {
+            applyPendingDemo()
+        } else {
+            tab = target   // didSet 落位后会应用 pendingDemoDeck
+        }
+    }
+
+    private func applyPendingDemo() {
+        guard let picked = pendingDemoDeck else { return }
+        pendingDemoDeck = nil
+        deck = picked
+        cursor = 0
+        deckHistory = []
+        batchMarked = []
+        actedSinceEntry = false
+        refreshCounts()
+    }
+
+    func endDemo() {
+        guard demoMode else { return }
+        demoMode = false
+        deckArchive.removeAll()
+        refreshLibrary(redeal: true)
+    }
+
+    /// 演示模式下，一组走完自动关闭演示（去留同款逻辑）
+    func endDemoIfActive() {
+        if demoMode { endDemo() }
     }
 
     /// 把待删队列提交给系统相册，之后仍可在「最近删除」找回 30 天
