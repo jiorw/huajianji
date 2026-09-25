@@ -207,12 +207,12 @@ enum PhotoStyle: String, CaseIterable, Identifiable {
             return controls(shadows, contrast: 1.15, saturation: 1.50, brightness: 0)
         case .vivid:
             // 自然饱和度（CIVibrance）比硬拉 saturation 更接近苹果「鲜明」的观感
-            return vibrance(controls(input, contrast: 1.06, brightness: 0.01), amount: 0.6)
+            return vibrance(controls(input, contrast: 1.06, saturation: 1.0, brightness: 0.01), amount: 0.6)
         case .vividWarm:
-            return temperature(vibrance(controls(input, contrast: 1.06, brightness: 0.01), amount: 0.55),
+            return temperature(vibrance(controls(input, contrast: 1.06, saturation: 1.0, brightness: 0.01), amount: 0.55),
                                kelvin: 1000, tint: 6)
         case .vividCool:
-            return temperature(vibrance(controls(input, contrast: 1.06, brightness: 0.01), amount: 0.55),
+            return temperature(vibrance(controls(input, contrast: 1.06, saturation: 1.0, brightness: 0.01), amount: 0.55),
                                kelvin: -1000, tint: -6)
         case .dramatic:
             return controls(input, contrast: 1.42, saturation: 0.88, brightness: -0.025)
