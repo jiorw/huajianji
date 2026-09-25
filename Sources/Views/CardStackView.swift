@@ -156,16 +156,28 @@ struct EmptyDeckView: View {
                  : store.contentFilter == .all ? "整个相册都过了一遍"
                  : "「\(store.contentFilter.title)」这一类里没有可筛的了")
                 .font(.title3.weight(.semibold))
-            Text("点下面的按钮继续发牌，或者去岁华簿清理待删照片。")
+            Text(store.remainingCount > 0 ? "正在发下一组…"
+                 : "点下面的按钮继续发牌，或者去岁华簿清理待删照片。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 28)
-            Button("再来 \(store.currentBatchSize) 张") { store.dealNewDeck() }
-                .buttonStyle(.glassProminent)
+            if store.remainingCount == 0 {
+                Button("再来 \(store.currentBatchSize) 张") { store.dealNewDeck() }
+                    .buttonStyle(.glassProminent)
+            }
         }
         .padding(28)
         .glassEffect(.regular, in: .rect(cornerRadius: 32))
         .padding(.horizontal, 12)
+        .onAppear {
+            // 还有存货就自动续一批，不会出现"没照片可清理"卡住的情况
+            if store.remainingCount > 0 {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(500))
+                    store.dealNewDeck()
+                }
+            }
+        }
     }
 }
