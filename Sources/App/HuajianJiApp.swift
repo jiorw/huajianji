@@ -88,7 +88,9 @@ enum MediaCache {
 struct MediaImageView: View {
     let asset: PHAsset
     let targetSize: CGSize
-    var contentMode: ContentMode = .fill
+    var contentMode: ContentMode = .fit
+    /// 请求像素倍率：常规 3x；超长图降到 1.5x 防止位图过大
+    var requestScale: CGFloat = 3
 
     @State private var image: UIImage?
     @State private var shownID: String?
@@ -146,8 +148,8 @@ struct MediaImageView: View {
         options.deliveryMode = .opportunistic
         options.resizeMode = .fast
         options.isNetworkAccessAllowed = true
-        let size = CGSize(width: max(targetSize.width, 120) * 3,
-                          height: max(targetSize.height, 120) * 3)
+        let size = CGSize(width: max(targetSize.width, 120) * requestScale,
+                          height: max(targetSize.height, 120) * requestScale)
         let slot = self.slot
         let target = targetSize
         let mode = contentMode
