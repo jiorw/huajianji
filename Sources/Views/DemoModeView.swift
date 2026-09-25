@@ -8,8 +8,8 @@ struct DemoModeView: View {
     @ObservedObject var store: PhotoStore
     @Environment(\.dismiss) private var dismiss
 
-    @State private var photoItems: [PhotosPickerItem] = []
-    @State private var videoItems: [PhotosPickerItem] = []
+    @State private var showPhotoPicker = false
+    @State private var showVideoPicker = false
     @State private var notice: String?
     @State private var isWorking = false
 
@@ -74,7 +74,9 @@ struct DemoModeView: View {
             }
 
             VStack(spacing: 14) {
-                PhotosPicker(selection: $photoItems, matching: .images) {
+                Button {
+                    showPhotoPicker = true
+                } label: {
                     Text("选择演示照片")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.white)
@@ -86,7 +88,9 @@ struct DemoModeView: View {
                 .glassEffect(.regular.interactive(), in: Capsule())
                 .disabled(isWorking)
 
-                PhotosPicker(selection: $videoItems, matching: .videos) {
+                Button {
+                    showVideoPicker = true
+                } label: {
                     Text("选择演示视频")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.white)
@@ -103,35 +107,76 @@ struct DemoModeView: View {
         }
         .background(Color(red: 0.045, green: 0.045, blue: 0.055).ignoresSafeArea())
         .preferredColorScheme(.dark)
-        .onChange(of: photoItems) { _, items in handle(items, isVideo: false) }
-        .onChange(of: videoItems) { _, items in handle(items, isVideo: true) }
+        .fullScreenCover(isPresented: $showPhotoPicker) {
+            AssetPicker(filter: .images) { assets in
+                handle(assets, isVideo: false)
+            }
+            .ignoresSafeArea()
+        }
+        .fullScreenCover(isPresented: $showVideoPicker) {
+            AssetPicker(filter: .videos) { assets in
+                handle(assets, isVideo: true)
+            }
+            .ignoresSafeArea()
+        }
     }
 
-    private func handle(_ items: [PhotosPickerItem], isVideo: Bool) {
-        guard !items.isEmpty else { return }
-        isWorking = true
-        let ids = items.compactMap { $0.assetIdentifier }
-        photoItems = []
-        videoItems = []
+    private func handle(_ assets: [PHAsset], isVideo: Bool) {
+        guard !assets.isEmpty else { return }
+        var picked = assets
+        if picked.count < minCount {
+            notice = "至少要选 \(minCount) 张，刚才只选了 \(picked.count) 张"
+            return
+        }
+        if picked.count > maxCount {
+            picked = Array(picked.prefix(maxCount))
+            notice = "最多演示 \(maxCount) 张，已取前 \(maxCount) 张"
+        } else {
+            notice = nil
+        }
+        store.startDemo(with: picked, isVideoDemo: isVideo)
         Task { @MainActor in
-            var assets: [PHAsset] = []
-            PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
-                .enumerateObjects { asset, _, _ in assets.append(asset) }
-            guard assets.count >= minCount else {
-                notice = "至少要选 \(minCount) 张，刚才只选了 \(assets.count) 张"
-                isWorking = false
-                return
-            }
-            if assets.count > maxCount {
-                assets = Array(assets.prefix(maxCount))
-                notice = "最多演示 \(maxCount) 张，已取前 \(maxCount) 张"
-            } else {
-                notice = nil
-            }
-            store.startDemo(with: assets, isVideoDemo: isVideo)
             try? await Task.sleep(for: .milliseconds(400))
             dismiss()
-            isWorking = false
+        }
+    }
+}
+
+/// PHPicker 包装：能拿到 PHAsset，且按用户点选顺序返回
+struct AssetPicker: UIViewControllerRepresentable {
+    let filter: PHPickerFilter
+    let onPicked: ([PHAsset]) -> Void
+
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.filter = filter
+        config.selectionLimit = 15
+        if #available(iOS 17, *) {
+            config.selection = .ordered
+        }
+        let vc = PHPickerViewController(configuration: config)
+        vc.delegate = context.coordinator
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        let parent: AssetPicker
+        init(_ parent: AssetPicker) { self.parent = parent }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true)
+            let ids = results.compactMap { $0.assetIdentifier }
+            var assets: [PHAsset] = []
+            if !ids.isEmpty {
+                PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
+                    .enumerateObjects { asset, _, _ in assets.append(asset) }
+            }
+            parent.onPicked(assets)
+            parent.dismiss()
         }
     }
 }
