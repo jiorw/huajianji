@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import Photos
 
 struct RootView: View {
@@ -69,7 +69,17 @@ struct RootView: View {
                 .transition(.opacity.combined(with: .scale(scale: 1.05)))
                 .zIndex(10)
             }
+
+            // 设置页：原位交叉溶解（去留式），不再是上滑 sheet
+            if showSettings {
+                SettingsView(store: store, onClose: {
+                    withAnimation(.spring(duration: 0.4, bounce: 0.12)) { showSettings = false }
+                })
+                .zIndex(25)
+                .transition(.opacity.combined(with: .scale(scale: 1.04)))
+            }
         }
+        .animation(.spring(duration: 0.4, bounce: 0.12), value: showSettings)
         .preferredColorScheme(.dark)
         .onChange(of: store.current?.localIdentifier) { _, _ in
             palette.update(from: store.current)
@@ -81,11 +91,6 @@ struct RootView: View {
             if on { meter.start() } else { meter.stop() }
         }
         .onAppear { if store.showFPS { meter.start() } }
-        .sheet(isPresented: $showSettings) {
-            SettingsView(store: store)
-                .presentationBackground(.black.opacity(0.72))
-                .presentationDragIndicator(.hidden)
-        }
         .fullScreenCover(item: $viewer) { request in
             PhotoViewerView(store: store, startIndex: request.index)
                 .navigationTransition(.zoom(sourceID: request.assetID, in: zoom))
